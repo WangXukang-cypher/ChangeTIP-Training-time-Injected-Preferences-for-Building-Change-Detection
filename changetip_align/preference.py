@@ -1,0 +1,87 @@
+import math
+
+import torch
+import torch.nn.functional as F
+
+from .candidate import as_prob
+
+
+def prob_to_logits(prob):
+    prob = prob.clamp(1e-6, 1.0 - 1e-6)
+    return torch.log(prob) - torch.log1p(-prob)
+
+
+def bernoulli_logprob(logits, mask):
+    log_p1 = -F.softplus(-logits)
+    log_p0 = -logits + log_p1
+    return mask * log_p1 + (1.0 - mask) * log_p0
+
+
+def masked_mean(value, focus):
+    return (value * focus).sum(dim=(1, 2, 3)) / (focus.sum(dim=(1, 2, 3)) + 1e-6)
+
+
+def focus_region(chosen, rejected, target=None, dilate=5):
+    focus = ((chosen - rejected).abs() > 0).float()
+    if target is not None:
+        focus = torch.maximum(focus, (target > 0.5).float())
+    if dilate > 1:
+        if dilate % 2 == 0:
+            dilate += 1
+        focus = F.max_pool2d(focus, kernel_size=dilate, stride=1, padding=dilate // 2)
+    return focus
+
+
+def dpo_loss(policy_prob, ref_prob, chosen, rejected, beta=0.2, focus=None):
+    policy_logits = prob_to_logits(policy_prob)
+    ref_logits = prob_to_logits(ref_prob)
+    if focus is None:
+        focus = focus_region(chosen, rejected)
+
+    lp_chosen = masked_mean(bernoulli_logprob(policy_logits, chosen), focus)
+    lp_rejected = masked_mean(bernoulli_logprob(policy_logits, rejected), focus)
+    lr_chosen = masked_mean(bernoulli_logprob(ref_logits, chosen), focus)
+    lr_rejected = masked_mean(bernoulli_logprob(ref_logits, rejected), focus)
+    advantage = (lp_chosen - lp_rejected) - (lr_chosen - lr_rejected)
+    return F.softplus(-beta * advantage).mean()
+
+
+def kl_bernoulli(policy_prob, ref_prob, focus=None):
+    p = as_prob(policy_prob)
+    q = as_prob(ref_prob)
+    kl = p * torch.log(p / q) + (1.0 - p) * torch.log((1.0 - p) / (1.0 - q))
+    if focus is None:
+        return kl.mean()
+    return masked_mean(kl, focus).mean()
+
+
+def supervised_loss(prob, target):
+    prob = as_prob(prob)
+    target = (target > 0.5).float()
+    bce = F.binary_cross_entropy(prob, target)
+    inter = (prob * target).sum(dim=(1, 2, 3))
+    dice = 1.0 - ((2.0 * inter + 1.0) / (prob.sum(dim=(1, 2, 3)) + target.sum(dim=(1, 2, 3)) + 1.0)).mean()
+    return 0.5 * bce + 0.5 * dice
+
+
+def boundary_loss(prob, target):
+    sobel_x = torch.tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]], dtype=prob.dtype, device=prob.device)
+    sobel_x = sobel_x.view(1, 1, 3, 3)
+    sobel_y = sobel_x.transpose(2, 3)
+    tgt_edge = F.conv2d(target, sobel_x, padding=1).abs() + F.conv2d(target, sobel_y, padding=1).abs()
+    tgt_edge = (tgt_edge > 0).float()
+    pred_edge = F.conv2d(prob, sobel_x, padding=1).abs() + F.conv2d(prob, sobel_y, padding=1).abs()
+    pred_edge = torch.sigmoid(pred_edge)
+    return F.binary_cross_entropy(pred_edge, tgt_edge)
+
+
+def false_positive_penalty(prob, target, weight=2.0):
+    return (weight * prob * (1.0 - target)).mean()
+
+
+def cosine_lr(step, total_steps, base_lr, warmup_steps=500, min_lr_factor=0.2):
+    if step <= warmup_steps:
+        return base_lr * max(0.1, step / max(1, warmup_steps))
+    progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+    factor = 0.5 * (1.0 + math.cos(math.pi * min(1.0, progress)))
+    return base_lr * max(min_lr_factor, factor)
