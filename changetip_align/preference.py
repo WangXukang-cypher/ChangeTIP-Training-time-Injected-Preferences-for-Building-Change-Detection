@@ -79,6 +79,68 @@ def false_positive_penalty(prob, target, weight=2.0):
     return (weight * prob * (1.0 - target)).mean()
 
 
+def pixel_grpo_loss(
+    logp_new: torch.Tensor,
+    logp_old: torch.Tensor,
+    rewards: torch.Tensor,
+    focus: torch.Tensor = None,
+    clip_eps: float = 0.2,
+    std_eps: float = 1e-4,
+    advantage_clip: float = 5.0,
+):
+    """Pixel-level Group Relative Policy Optimization loss.
+
+    Shapes:
+        logp_new: [B, K, H, W] log pi_theta(mask_i | x), with grad
+        logp_old: [B, K, H, W] log pi_theta_old(mask_i | x), no grad
+        rewards : [B, K, H, W] per-pixel reward (no grad)
+        focus   : [B, 1, H, W] optional spatial weight, broadcast over K
+
+    Returns: scalar loss.
+
+    The advantage is normalized within the group of K candidates per spatial location,
+    which (i) removes the need for a learned value baseline, (ii) reduces variance
+    relative to pairwise DPO under heavy-tailed rewards, and (iii) automatically
+    rescales credit assignment per pixel.
+    """
+    mean_r = rewards.mean(dim=1, keepdim=True)
+    std_r = rewards.std(dim=1, keepdim=True).clamp(min=std_eps)
+    advantage = ((rewards - mean_r) / std_r).clamp(-advantage_clip, advantage_clip).detach()
+
+    log_ratio = logp_new - logp_old.detach()
+    ratio = torch.exp(log_ratio.clamp(-10.0, 10.0))
+    surr1 = ratio * advantage
+    surr2 = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * advantage
+    pixel_loss = -torch.minimum(surr1, surr2)  # [B, K, H, W]
+
+    if focus is None:
+        return pixel_loss.mean()
+    focus = focus.expand_as(pixel_loss)
+    return (pixel_loss * focus).sum() / (focus.sum() + 1e-6)
+
+
+def prm_gated_kl(
+    policy_logit: torch.Tensor,
+    ref_logit: torch.Tensor,
+    reward_map: torch.Tensor,
+    temperature: float = 1.0,
+):
+    """KL(pi_theta || pi_ref) with a per-pixel gate produced by the PRM.
+
+    policy_logit, ref_logit: [B, 1, H, W] logits of base+residual policies.
+    reward_map: [B, 1, H, W] PRM logit on the *current* policy mask.
+
+    The gate sigma(temperature * reward_map) localizes regularization to pixels the
+    PRM marks as low-quality, which is where pi_theta should *not* drift away from
+    pi_ref. On already-confident-correct pixels the gate is small and KL is light.
+    """
+    from .sampling import kl_bernoulli_per_pixel
+
+    kl = kl_bernoulli_per_pixel(policy_logit, ref_logit)  # [B, 1, H, W]
+    gate = torch.sigmoid(-temperature * reward_map)  # high where PRM is uncertain or negative
+    return (kl * gate).sum() / (gate.sum() + 1e-6)
+
+
 def cosine_lr(step, total_steps, base_lr, warmup_steps=500, min_lr_factor=0.2):
     if step <= warmup_steps:
         return base_lr * max(0.1, step / max(1, warmup_steps))

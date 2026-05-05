@@ -24,6 +24,32 @@ class ChangeTIPAlignModel(nn.Module):
         base_prob = self.base_model.decoder(change_features)
         return self.spatial_head(change_features, base_prob)
 
+    def update_bcd_full(self, x, y):
+        """Forward pass exposing intermediate signals required by GRPO/PRM.
+
+        Returns a dict with:
+          base_prob:    [B, 1, H, W] frozen Change3D output
+          base_logit:   [B, 1, H, W] logit(base_prob)
+          delta_logit:  [B, 1, H, W] residual logit (with grad if head trainable)
+          final_prob:   [B, 1, H, W] sigmoid(base_logit + scale * delta_logit)
+          stages:       list of [B, C, H_l, W_l] from the spatial head
+          residual_scale: scalar parameter (alpha)
+        """
+        features = self.base_model.encoder(x, y)
+        change_features = [item[0] for item in features]
+        base_prob = self.base_model.decoder(change_features)
+        final_prob, base_logit, delta_logit, stages = self.spatial_head(
+            change_features, base_prob, return_stages=True
+        )
+        return {
+            "base_prob": base_prob,
+            "base_logit": base_logit,
+            "delta_logit": delta_logit,
+            "final_prob": final_prob,
+            "stages": stages,
+            "residual_scale": self.spatial_head.residual_scale,
+        }
+
     def update_scd(self, x, y):
         return self.base_model.update_scd(x, y)
 

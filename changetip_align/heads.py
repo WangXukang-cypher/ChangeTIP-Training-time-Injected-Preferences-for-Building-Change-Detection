@@ -53,6 +53,8 @@ class SpatialResidualChangeHead(nn.Module):
 
     def __init__(self, in_channels=(24, 24, 48, 96), channels=64, init_scale=0.1):
         super().__init__()
+        self.channels = channels
+        self.num_stages = len(in_channels) + 1
         self.projections = nn.ModuleList([nn.Conv2d(c, channels, 1, bias=False) for c in in_channels])
         self.fusions = nn.ModuleList([FeatureFusionBlock(channels) for _ in range(len(in_channels) - 1)])
         self.refine = nn.Sequential(
@@ -66,13 +68,24 @@ class SpatialResidualChangeHead(nn.Module):
         nn.init.zeros_(self.out.weight)
         nn.init.zeros_(self.out.bias)
 
-    def forward(self, features, base_prob):
+    def forward(self, features, base_prob, return_stages=False):
         projected = [proj(feat) for proj, feat in zip(self.projections, features)]
         x = projected[-1]
+        stages = [x]
         for fusion, skip in zip(self.fusions, reversed(projected[:-1])):
             x = fusion(x, skip)
+            stages.append(x)
         x = self.refine(x)
+        stages.append(x)
         delta_logit = self.out(x)
         if delta_logit.shape[-2:] != base_prob.shape[-2:]:
             delta_logit = F.interpolate(delta_logit, size=base_prob.shape[-2:], mode="bilinear", align_corners=False)
-        return torch.sigmoid(prob_to_logit(base_prob) + self.residual_scale * delta_logit)
+        base_logit = prob_to_logit(base_prob)
+        final_prob = torch.sigmoid(base_logit + self.residual_scale * delta_logit)
+        if return_stages:
+            return final_prob, base_logit, delta_logit, stages
+        return final_prob
+
+    @property
+    def stage_channels(self):
+        return [self.channels] * self.num_stages

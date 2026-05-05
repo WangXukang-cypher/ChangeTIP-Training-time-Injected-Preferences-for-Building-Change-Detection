@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python scripts/train_prm.py --help)",
+      "Bash(python scripts/train_grpo.py --help)"
+    ]
+  }
+}
