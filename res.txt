@@ -1,0 +1,202 @@
+CLCD:
+PRM:
+[epoch 001] train_loss=2.0577 real_acc=0.6516 fake_acc=0.3860 fake_iou=0.5165 r_real=+0.077 r_fake=+0.054 gap=+0.023
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 002] train_loss=1.9002 real_acc=0.9807 fake_acc=0.1451 fake_iou=0.4960 r_real=+0.472 r_fake=+0.322 gap=+0.150
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 003] train_loss=1.8154 real_acc=0.4228 fake_acc=0.6257 fake_iou=0.5177 r_real=-0.106 r_fake=-0.318 gap=+0.212
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 004] train_loss=1.7456 real_acc=0.4325 fake_acc=0.5165 fake_iou=0.5017 r_real=-0.115 r_fake=-0.248 gap=+0.132
+[epoch 005] train_loss=1.6800 real_acc=0.4355 fake_acc=0.5387 fake_iou=0.5345 r_real=-0.089 r_fake=-0.173 gap=+0.084
+[epoch 006] train_loss=1.4745 real_acc=0.7213 fake_acc=0.7839 fake_iou=0.4941 r_real=+0.624 r_fake=-0.673 gap=+1.297
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 007] train_loss=1.2017 real_acc=0.7456 fake_acc=0.7841 fake_iou=0.5137 r_real=+1.031 r_fake=-0.611 gap=+1.642
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 008] train_loss=1.2545 real_acc=0.3124 fake_acc=0.9241 fake_iou=0.4985 r_real=-0.378 r_fake=-1.233 gap=+0.855
+[epoch 009] train_loss=1.1936 real_acc=0.5797 fake_acc=0.8713 fake_iou=0.5771 r_real=+0.410 r_fake=-1.004 gap=+1.414
+[epoch 010] train_loss=1.0582 real_acc=0.3748 fake_acc=0.9040 fake_iou=0.5194 r_real=-0.213 r_fake=-1.445 gap=+1.232
+[epoch 011] train_loss=1.1970 real_acc=0.4044 fake_acc=0.9709 fake_iou=0.5285 r_real=-0.344 r_fake=-1.805 gap=+1.460
+[epoch 012] train_loss=1.2009 real_acc=0.5801 fake_acc=0.8945 fake_iou=0.5100 r_real=+0.430 r_fake=-1.221 gap=+1.651
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 013] train_loss=1.0887 real_acc=0.7017 fake_acc=0.8380 fake_iou=0.5535 r_real=+0.827 r_fake=-0.856 gap=+1.683
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 014] train_loss=0.9847 real_acc=0.4497 fake_acc=0.8376 fake_iou=0.5645 r_real=+0.075 r_fake=-1.287 gap=+1.362
+[epoch 015] train_loss=0.9924 real_acc=0.3235 fake_acc=0.9424 fake_iou=0.5577 r_real=-0.535 r_fake=-1.765 gap=+1.231
+[epoch 016] train_loss=0.9202 real_acc=0.4478 fake_acc=0.8929 fake_iou=0.5503 r_real=+0.026 r_fake=-1.489 gap=+1.515
+[epoch 017] train_loss=0.9591 real_acc=0.5090 fake_acc=0.9080 fake_iou=0.4962 r_real=+0.122 r_fake=-1.730 gap=+1.851
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 018] train_loss=1.0029 real_acc=0.6781 fake_acc=0.8057 fake_iou=0.5670 r_real=+0.836 r_fake=-1.055 gap=+1.890
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 019] train_loss=1.0051 real_acc=0.5600 fake_acc=0.9142 fake_iou=0.5403 r_real=+0.266 r_fake=-1.666 gap=+1.932
+  saved PRM to outputs/clcd_prm_v1.pt
+[epoch 020] train_loss=0.9485 real_acc=0.3104 fake_acc=0.9669 fake_iou=0.5497 r_real=-0.663 r_fake=-2.139 gap=+1.476
+[epoch 021] train_loss=0.9554 real_acc=0.5853 fake_acc=0.8921 fake_iou=0.5311 r_real=+0.449 r_fake=-1.445 gap=+1.894
+[epoch 022] train_loss=0.9994 real_acc=0.3847 fake_acc=0.9502 fake_iou=0.5358 r_real=-0.154 r_fake=-1.657 gap=+1.503
+[epoch 023] train_loss=1.0472 real_acc=0.4092 fake_acc=0.9320 fake_iou=0.5501 r_real=-0.161 r_fake=-1.667 gap=+1.506
+[epoch 024] train_loss=0.9582 real_acc=0.4599 fake_acc=0.8656 fake_iou=0.5621 r_real=-0.055 r_fake=-1.508 gap=+1.453
+[epoch 025] train_loss=0.9616 real_acc=0.5006 fake_acc=0.9168 fake_iou=0.5434 r_real=+0.016 r_fake=-1.630 gap=+1.646
+[epoch 026] train_loss=0.8931 real_acc=0.3691 fake_acc=0.9346 fake_iou=0.5594 r_real=-0.316 r_fake=-1.763 gap=+1.447
+[epoch 027] train_loss=0.9532 real_acc=0.3679 fake_acc=0.9552 fake_iou=0.5034 r_real=-0.344 r_fake=-1.914 gap=+1.570
+[epoch 028] train_loss=0.9946 real_acc=0.5502 fake_acc=0.8613 fake_iou=0.5134 r_real=+0.230 r_fake=-1.408 gap=+1.638
+[epoch 029] train_loss=0.9106 real_acc=0.4451 fake_acc=0.9097 fake_iou=0.4769 r_real=-0.095 r_fake=-1.761 gap=+1.665
+[epoch 030] train_loss=0.9230 real_acc=0.4408 fake_acc=0.9343 fake_iou=0.5163 r_real=-0.097 r_fake=-1.658 gap=+1.561
+
+GRPO:
+[before] test F1=0.7883 IoU=0.6505
+[step 000050] lr=2.00e-06 tau=0.98 sup=0.0834 grpo=-0.0174 kl=0.0136 bnd=0.7076 fp=0.0128 r_std=0.4606
+[epoch 001] test F1=0.7830 IoU=0.6433 P=0.8509 R=0.7251
+  saved policy to outputs/clcd_grpo_v1.pth
+[step 000100] lr=4.00e-06 tau=0.96 sup=0.1339 grpo=-0.0231 kl=0.0095 bnd=0.6980 fp=0.0032 r_std=0.5865
+[step 000150] lr=6.00e-06 tau=0.94 sup=0.4491 grpo=-0.0190 kl=0.9622 bnd=0.7320 fp=0.0106 r_std=0.5814
+[epoch 002] test F1=0.7842 IoU=0.6450 P=0.8622 R=0.7191
+  saved policy to outputs/clcd_grpo_v1.pth
+[step 000200] lr=8.00e-06 tau=0.93 sup=0.1218 grpo=-0.0273 kl=0.0764 bnd=0.7111 fp=0.0227 r_std=0.5128
+[step 000250] lr=1.00e-05 tau=0.91 sup=0.1723 grpo=-0.0152 kl=0.0172 bnd=0.7022 fp=0.0114 r_std=0.6581
+[epoch 003] test F1=0.7837 IoU=0.6443 P=0.8496 R=0.7273
+[step 000300] lr=1.20e-05 tau=0.89 sup=0.0928 grpo=-0.0156 kl=0.0046 bnd=0.7019 fp=0.0070 r_std=0.7205
+[step 000350] lr=1.40e-05 tau=0.87 sup=0.0798 grpo=-0.0089 kl=0.0270 bnd=0.7053 fp=0.0065 r_std=0.5118
+[epoch 004] test F1=0.7763 IoU=0.6344 P=0.8568 R=0.7096
+[step 000400] lr=1.60e-05 tau=0.85 sup=0.0600 grpo=-0.0157 kl=0.0254 bnd=0.7045 fp=0.0078 r_std=0.5119
+[step 000450] lr=1.80e-05 tau=0.83 sup=0.1797 grpo=-0.0203 kl=0.0055 bnd=0.7028 fp=0.0087 r_std=0.5404
+[epoch 005] test F1=0.7786 IoU=0.6374 P=0.8611 R=0.7105
+[step 000500] lr=2.00e-05 tau=0.81 sup=0.2310 grpo=-0.0211 kl=0.0195 bnd=0.7012 fp=0.0145 r_std=0.6617
+[epoch 006] test F1=0.7821 IoU=0.6422 P=0.8546 R=0.7210
+[step 000550] lr=1.98e-05 tau=0.80 sup=0.0943 grpo=-0.0125 kl=0.0747 bnd=0.7127 fp=0.0063 r_std=0.4935
+[step 000600] lr=1.93e-05 tau=0.78 sup=0.0995 grpo=-0.0214 kl=0.0146 bnd=0.7014 fp=0.0056 r_std=0.5098
+[epoch 007] test F1=0.7814 IoU=0.6412 P=0.8447 R=0.7269
+[step 000650] lr=1.85e-05 tau=0.76 sup=0.1076 grpo=-0.0114 kl=0.0057 bnd=0.7021 fp=0.0044 r_std=0.6133
+[step 000700] lr=1.74e-05 tau=0.74 sup=0.0884 grpo=-0.0110 kl=0.0244 bnd=0.7084 fp=0.0118 r_std=0.4847
+[epoch 008] test F1=0.7845 IoU=0.6454 P=0.8513 R=0.7274
+  saved policy to outputs/clcd_grpo_v1.pth
+[step 000750] lr=1.60e-05 tau=0.72 sup=0.1728 grpo=-0.0087 kl=0.0105 bnd=0.7034 fp=0.0064 r_std=0.5729
+[step 000800] lr=1.45e-05 tau=0.70 sup=0.1732 grpo=-0.0168 kl=0.0419 bnd=0.7089 fp=0.0079 r_std=0.6261
+[epoch 009] test F1=0.7830 IoU=0.6434 P=0.8621 R=0.7172
+[step 000850] lr=1.27e-05 tau=0.69 sup=0.3072 grpo=-0.0201 kl=0.0070 bnd=0.6961 fp=0.0026 r_std=0.7203
+[step 000900] lr=1.09e-05 tau=0.67 sup=0.0885 grpo=-0.0100 kl=0.0662 bnd=0.7077 fp=0.0098 r_std=0.5001
+[epoch 010] test F1=0.7882 IoU=0.6504 P=0.8467 R=0.7373
+  saved policy to outputs/clcd_grpo_v1.pth
+[step 000950] lr=9.08e-06 tau=0.65 sup=0.1609 grpo=-0.0135 kl=0.0211 bnd=0.7103 fp=0.0363 r_std=0.5347
+[epoch 011] test F1=0.7779 IoU=0.6366 P=0.8670 R=0.7055
+[step 001000] lr=7.26e-06 tau=0.63 sup=0.1992 grpo=-0.0134 kl=0.0210 bnd=0.7022 fp=0.0047 r_std=0.7362
+[step 001050] lr=5.54e-06 tau=0.61 sup=0.1295 grpo=-0.0077 kl=0.0079 bnd=0.7008 fp=0.0030 r_std=0.7662
+[epoch 012] test F1=0.7818 IoU=0.6417 P=0.8604 R=0.7163
+[step 001100] lr=4.00e-06 tau=0.59 sup=0.3348 grpo=-0.0171 kl=0.1384 bnd=0.7136 fp=0.0436 r_std=0.5954
+[step 001150] lr=4.00e-06 tau=0.57 sup=0.1060 grpo=-0.0112 kl=0.0234 bnd=0.7084 fp=0.0109 r_std=0.5232
+[epoch 013] test F1=0.7866 IoU=0.6483 P=0.8524 R=0.7302
+[step 001200] lr=4.00e-06 tau=0.56 sup=0.1153 grpo=-0.0110 kl=0.0031 bnd=0.6947 fp=0.0026 r_std=0.6610
+[step 001250] lr=4.00e-06 tau=0.54 sup=0.0462 grpo=-0.0111 kl=0.0192 bnd=0.7016 fp=0.0061 r_std=0.5651
+[epoch 014] test F1=0.7848 IoU=0.6459 P=0.8668 R=0.7170
+[step 001300] lr=4.00e-06 tau=0.52 sup=0.1466 grpo=-0.0064 kl=0.1022 bnd=0.7127 fp=0.0038 r_std=0.6345
+[step 001350] lr=4.00e-06 tau=0.50 sup=0.1624 grpo=-0.0063 kl=0.0111 bnd=0.7085 fp=0.0141 r_std=0.6251
+[epoch 015] test F1=0.7860 IoU=0.6474 P=0.8564 R=0.7262
+[test] F1=0.7882 IoU=0.6504 P=0.8467 R=0.7373
+
+WHU:
+PRM:
+[epoch 001] train_loss=2.0385 real_acc=0.5446 fake_acc=0.5052 fake_iou=0.6242 r_real=+0.021 r_fake=-0.004 gap=+0.025
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 002] train_loss=1.9635 real_acc=0.3750 fake_acc=0.6705 fake_iou=0.6787 r_real=-0.050 r_fake=-0.084 gap=+0.034
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 003] train_loss=1.9512 real_acc=0.5779 fake_acc=0.5042 fake_iou=0.6549 r_real=+0.013 r_fake=-0.126 gap=+0.139
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 004] train_loss=1.9090 real_acc=0.8538 fake_acc=0.2398 fake_iou=0.6691 r_real=+0.318 r_fake=+0.181 gap=+0.137
+[epoch 005] train_loss=1.8950 real_acc=0.2161 fake_acc=0.8297 fake_iou=0.6602 r_real=-0.302 r_fake=-0.473 gap=+0.171
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 006] train_loss=1.9083 real_acc=0.7333 fake_acc=0.3527 fake_iou=0.6717 r_real=+0.250 r_fake=+0.085 gap=+0.165
+[epoch 007] train_loss=1.9121 real_acc=0.7896 fake_acc=0.3153 fake_iou=0.6349 r_real=+0.253 r_fake=+0.094 gap=+0.159
+[epoch 008] train_loss=1.8766 real_acc=0.8352 fake_acc=0.2784 fake_iou=0.6442 r_real=+0.290 r_fake=+0.151 gap=+0.140
+[epoch 009] train_loss=1.9395 real_acc=0.6472 fake_acc=0.4410 fake_iou=0.6198 r_real=+0.064 r_fake=-0.043 gap=+0.107
+[epoch 010] train_loss=1.9053 real_acc=0.7907 fake_acc=0.2937 fake_iou=0.6300 r_real=+0.313 r_fake=+0.163 gap=+0.149
+[epoch 011] train_loss=1.9011 real_acc=0.8119 fake_acc=0.2914 fake_iou=0.6557 r_real=+0.211 r_fake=+0.066 gap=+0.145
+[epoch 012] train_loss=1.8924 real_acc=0.8383 fake_acc=0.2726 fake_iou=0.6618 r_real=+0.196 r_fake=+0.052 gap=+0.144
+[epoch 013] train_loss=1.8807 real_acc=0.8320 fake_acc=0.3341 fake_iou=0.6248 r_real=+0.179 r_fake=-0.023 gap=+0.202
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 014] train_loss=1.8781 real_acc=0.8131 fake_acc=0.2800 fake_iou=0.6654 r_real=+0.350 r_fake=+0.198 gap=+0.152
+[epoch 015] train_loss=1.8465 real_acc=0.9359 fake_acc=0.1992 fake_iou=0.6766 r_real=+0.599 r_fake=+0.399 gap=+0.200
+[epoch 016] train_loss=1.8512 real_acc=0.8097 fake_acc=0.3120 fake_iou=0.6716 r_real=+0.234 r_fake=+0.061 gap=+0.173
+[epoch 017] train_loss=1.8516 real_acc=0.8388 fake_acc=0.2729 fake_iou=0.6694 r_real=+0.407 r_fake=+0.201 gap=+0.206
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 018] train_loss=1.8275 real_acc=0.9144 fake_acc=0.2107 fake_iou=0.6686 r_real=+0.790 r_fake=+0.483 gap=+0.307
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 019] train_loss=1.6733 real_acc=0.9605 fake_acc=0.2357 fake_iou=0.6398 r_real=+1.099 r_fake=+0.566 gap=+0.533
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 020] train_loss=1.6490 real_acc=0.8514 fake_acc=0.3829 fake_iou=0.6401 r_real=+0.855 r_fake=+0.170 gap=+0.685
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 021] train_loss=1.5492 real_acc=0.9095 fake_acc=0.2348 fake_iou=0.6839 r_real=+1.217 r_fake=+0.741 gap=+0.476
+[epoch 022] train_loss=1.5579 real_acc=0.8815 fake_acc=0.3426 fake_iou=0.6047 r_real=+1.188 r_fake=+0.249 gap=+0.939
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 023] train_loss=1.5537 real_acc=0.8368 fake_acc=0.6415 fake_iou=0.6496 r_real=+0.629 r_fake=-0.171 gap=+0.800
+[epoch 024] train_loss=1.4127 real_acc=0.8103 fake_acc=0.6859 fake_iou=0.6229 r_real=+0.702 r_fake=-0.395 gap=+1.097
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 025] train_loss=1.3947 real_acc=0.8151 fake_acc=0.6434 fake_iou=0.6798 r_real=+0.828 r_fake=-0.186 gap=+1.014
+[epoch 026] train_loss=1.3881 real_acc=0.8768 fake_acc=0.5357 fake_iou=0.6214 r_real=+1.224 r_fake=-0.085 gap=+1.308
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 027] train_loss=1.3758 real_acc=0.8836 fake_acc=0.4493 fake_iou=0.6530 r_real=+1.338 r_fake=+0.111 gap=+1.227
+[epoch 028] train_loss=1.3396 real_acc=0.8969 fake_acc=0.4214 fake_iou=0.6628 r_real=+1.344 r_fake=+0.170 gap=+1.174
+[epoch 029] train_loss=1.3213 real_acc=0.8060 fake_acc=0.6377 fake_iou=0.6324 r_real=+0.930 r_fake=-0.390 gap=+1.319
+  saved PRM to outputs/WHU_prm_v1.pt
+[epoch 030] train_loss=1.3324 real_acc=0.8399 fake_acc=0.6020 fake_iou=0.6752 r_real=+1.005 r_fake=-0.194 gap=+1.199
+
+GRPO:
+[before] test F1=0.9388 IoU=0.8847
+[step 000050] lr=2.00e-06 tau=0.99 sup=0.4241 grpo=-0.0248 kl=0.0655 bnd=0.7033 fp=0.0147 r_std=0.2274
+[step 000100] lr=4.00e-06 tau=0.98 sup=0.0419 grpo=-0.0053 kl=0.0030 bnd=0.7023 fp=0.0067 r_std=0.2482
+[epoch 001] test F1=0.9294 IoU=0.8681 P=0.9418 R=0.9173
+  saved policy to outputs/whu_grpo_v1.pth
+[step 000150] lr=6.00e-06 tau=0.96 sup=0.2300 grpo=-0.0072 kl=0.0785 bnd=0.7130 fp=0.0323 r_std=0.3002
+[step 000200] lr=8.00e-06 tau=0.95 sup=0.1932 grpo=-0.0068 kl=0.0443 bnd=0.7184 fp=0.0118 r_std=0.4827
+[step 000250] lr=1.00e-05 tau=0.94 sup=0.0716 grpo=-0.0087 kl=0.0076 bnd=0.7102 fp=0.0078 r_std=0.3059
+[epoch 002] test F1=0.9279 IoU=0.8655 P=0.9429 R=0.9134
+[step 000300] lr=1.20e-05 tau=0.93 sup=0.1068 grpo=-0.0177 kl=0.0223 bnd=0.7023 fp=0.0067 r_std=0.3812
+[step 000350] lr=1.40e-05 tau=0.92 sup=0.3815 grpo=-0.0190 kl=0.0443 bnd=0.7249 fp=0.0476 r_std=0.2780
+[step 000400] lr=1.60e-05 tau=0.90 sup=0.2084 grpo=-0.0265 kl=0.0114 bnd=0.6954 fp=0.0007 r_std=0.2496
+[epoch 003] test F1=0.9347 IoU=0.8775 P=0.9436 R=0.9261
+  saved policy to outputs/whu_grpo_v1.pth
+[step 000450] lr=1.80e-05 tau=0.89 sup=0.1969 grpo=-0.0050 kl=0.0253 bnd=0.7086 fp=0.0155 r_std=0.4269
+[step 000500] lr=2.00e-05 tau=0.88 sup=0.3556 grpo=-0.0129 kl=0.0675 bnd=0.7160 fp=0.0306 r_std=0.5156
+[step 000550] lr=1.99e-05 tau=0.87 sup=0.4250 grpo=-0.0037 kl=0.0144 bnd=0.6964 fp=0.0027 r_std=0.4331
+[epoch 004] test F1=0.9329 IoU=0.8743 P=0.9387 R=0.9272
+[step 000600] lr=1.98e-05 tau=0.86 sup=0.1530 grpo=-0.0046 kl=0.0040 bnd=0.6942 fp=0.0008 r_std=0.3708
+[step 000650] lr=1.96e-05 tau=0.84 sup=0.0913 grpo=-0.0037 kl=0.0151 bnd=0.7157 fp=0.0083 r_std=0.4691
+[epoch 005] test F1=0.9332 IoU=0.8747 P=0.9485 R=0.9183
+[step 000700] lr=1.92e-05 tau=0.83 sup=0.3001 grpo=-0.0108 kl=0.1123 bnd=0.7135 fp=0.0205 r_std=0.4319
+[step 000750] lr=1.88e-05 tau=0.82 sup=0.1288 grpo=-0.0031 kl=0.0060 bnd=0.7002 fp=0.0061 r_std=0.5123
+[step 000800] lr=1.83e-05 tau=0.81 sup=0.0450 grpo=-0.0025 kl=0.0101 bnd=0.7070 fp=0.0088 r_std=0.6130
+[epoch 006] test F1=0.9333 IoU=0.8750 P=0.9410 R=0.9258
+[step 000850] lr=1.76e-05 tau=0.79 sup=0.2989 grpo=-0.0186 kl=0.0287 bnd=0.7032 fp=0.0188 r_std=0.3234
+[step 000900] lr=1.70e-05 tau=0.78 sup=0.4391 grpo=-0.0051 kl=0.2493 bnd=0.7217 fp=0.0681 r_std=0.2856
+[step 000950] lr=1.62e-05 tau=0.77 sup=0.3013 grpo=-0.0023 kl=0.0099 bnd=0.6978 fp=0.0182 r_std=0.4453
+[epoch 007] test F1=0.9319 IoU=0.8725 P=0.9380 R=0.9259
+[step 001000] lr=1.54e-05 tau=0.76 sup=0.1338 grpo=-0.0071 kl=0.0755 bnd=0.7120 fp=0.0152 r_std=0.6168
+[step 001050] lr=1.45e-05 tau=0.75 sup=0.1438 grpo=-0.0017 kl=0.0032 bnd=0.6939 fp=0.0023 r_std=0.5895
+[step 001100] lr=1.36e-05 tau=0.73 sup=0.1114 grpo=-0.0032 kl=0.1081 bnd=0.7216 fp=0.0115 r_std=0.4469
+[epoch 008] test F1=0.9339 IoU=0.8760 P=0.9444 R=0.9236
+[step 001150] lr=1.27e-05 tau=0.72 sup=0.2154 grpo=-0.0061 kl=0.0567 bnd=0.7086 fp=0.0122 r_std=0.6612
+[step 001200] lr=1.17e-05 tau=0.71 sup=0.1641 grpo=-0.0027 kl=0.0317 bnd=0.7169 fp=0.0127 r_std=0.6346
+[epoch 009] test F1=0.9330 IoU=0.8744 P=0.9418 R=0.9243
+[step 001250] lr=1.07e-05 tau=0.70 sup=0.0988 grpo=-0.0007 kl=0.0324 bnd=0.7032 fp=0.0085 r_std=0.3439
+[step 001300] lr=9.70e-06 tau=0.69 sup=0.5430 grpo=-0.0041 kl=0.9117 bnd=0.7522 fp=0.0058 r_std=0.4444
+[step 001350] lr=8.70e-06 tau=0.67 sup=0.0835 grpo=-0.0026 kl=0.0094 bnd=0.7002 fp=0.0054 r_std=0.3182
+[epoch 010] test F1=0.9341 IoU=0.8764 P=0.9449 R=0.9236
+[step 001400] lr=7.72e-06 tau=0.66 sup=0.1167 grpo=-0.0018 kl=0.0310 bnd=0.7056 fp=0.0212 r_std=0.3743
+[step 001450] lr=6.76e-06 tau=0.65 sup=0.1805 grpo=-0.0035 kl=0.0366 bnd=0.7082 fp=0.0085 r_std=0.5053
+[step 001500] lr=5.83e-06 tau=0.64 sup=0.0600 grpo=-0.0045 kl=0.0215 bnd=0.7015 fp=0.0040 r_std=0.4163
+[epoch 011] test F1=0.9349 IoU=0.8777 P=0.9441 R=0.9258
+  saved policy to outputs/whu_grpo_v1.pth
+[step 001550] lr=4.94e-06 tau=0.63 sup=0.1546 grpo=-0.0066 kl=0.1631 bnd=0.7407 fp=0.0353 r_std=0.3834
+[step 001600] lr=4.11e-06 tau=0.61 sup=0.1697 grpo=-0.0019 kl=0.0239 bnd=0.7203 fp=0.0193 r_std=0.4904
+[step 001650] lr=4.00e-06 tau=0.60 sup=0.9505 grpo=-0.0052 kl=0.7280 bnd=0.7440 fp=0.0308 r_std=0.3965
+[epoch 012] test F1=0.9314 IoU=0.8717 P=0.9447 R=0.9185
+[step 001700] lr=4.00e-06 tau=0.59 sup=0.1657 grpo=-0.0021 kl=0.0060 bnd=0.6991 fp=0.0014 r_std=0.2685
+[step 001750] lr=4.00e-06 tau=0.58 sup=0.4310 grpo=-0.0059 kl=0.4059 bnd=0.7291 fp=0.0645 r_std=0.5816
+[epoch 013] test F1=0.9361 IoU=0.8798 P=0.9456 R=0.9267
+  saved policy to outputs/whu_grpo_v1.pth
+[step 001800] lr=4.00e-06 tau=0.57 sup=0.0520 grpo=-0.0008 kl=0.0042 bnd=0.6940 fp=0.0026 r_std=0.4078
+[step 001850] lr=4.00e-06 tau=0.55 sup=0.1155 grpo=-0.0037 kl=0.0429 bnd=0.7265 fp=0.0141 r_std=0.5376
+[step 001900] lr=4.00e-06 tau=0.54 sup=0.1100 grpo=-0.0070 kl=0.1274 bnd=0.7117 fp=0.0250 r_std=0.5348
+[epoch 014] test F1=0.9334 IoU=0.8751 P=0.9475 R=0.9197
+[step 001950] lr=4.00e-06 tau=0.53 sup=0.0384 grpo=-0.0022 kl=0.0079 bnd=0.6974 fp=0.0062 r_std=0.5099
+[step 002000] lr=4.00e-06 tau=0.52 sup=0.3180 grpo=-0.0078 kl=0.1530 bnd=0.7226 fp=0.0307 r_std=0.5925
+[step 002050] lr=4.00e-06 tau=0.50 sup=0.3255 grpo=-0.0018 kl=0.0105 bnd=0.7002 fp=0.0086 r_std=0.4969
+[epoch 015] test F1=0.9315 IoU=0.8718 P=0.9468 R=0.9167
+[test] F1=0.9361 IoU=0.8798 P=0.9456 R=0.9267

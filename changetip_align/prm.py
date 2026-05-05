@@ -20,10 +20,19 @@ class StageRewardHead(nn.Module):
     resolution and need to integrate global context.
     """
 
-    def __init__(self, feat_channels: int, hidden: int = 128):
+    def __init__(self, feat_channels: int, hidden: int = 128, ext_channels: int = 0):
         super().__init__()
-        # Inputs: z, mask*z, (1-mask)*z, mask, diff, mask*diff
+        # Inputs: z, mask*z, (1-mask)*z, mask, diff, mask*diff [, e, mask*e]
+        self.ext_channels = ext_channels
         in_ch = 3 * feat_channels + 3
+        if ext_channels > 0:
+            # Project external features to a small width before fusion to keep
+            # the conv input manageable when ext_channels is large (e.g. 1920
+            # for ResNet18 multi-scale concat).
+            self.ext_proj = nn.Conv2d(ext_channels, 64, 1)
+            in_ch += 2 * 64
+        else:
+            self.ext_proj = None
         groups = 8 if hidden % 8 == 0 else 1
         self.net = nn.Sequential(
             nn.Conv2d(in_ch, hidden, 3, padding=1),
@@ -41,7 +50,13 @@ class StageRewardHead(nn.Module):
             nn.Conv2d(hidden, 1, 1),
         )
 
-    def forward(self, z: torch.Tensor, mask: torch.Tensor, diff: torch.Tensor):
+    def forward(
+        self,
+        z: torch.Tensor,
+        mask: torch.Tensor,
+        diff: torch.Tensor,
+        ext_feat: torch.Tensor = None,
+    ):
         if mask.shape[-2:] != z.shape[-2:]:
             mask = F.interpolate(mask, size=z.shape[-2:], mode="bilinear", align_corners=False)
         if diff.shape[-2:] != z.shape[-2:]:
@@ -49,7 +64,16 @@ class StageRewardHead(nn.Module):
         z_in = z * mask
         z_out = z * (1.0 - mask)
         d_in = diff * mask
-        x = torch.cat([z, z_in, z_out, mask, diff, d_in], dim=1)
+        parts = [z, z_in, z_out, mask, diff, d_in]
+        if self.ext_proj is not None and ext_feat is not None:
+            if ext_feat.shape[-2:] != z.shape[-2:]:
+                ext_feat = F.interpolate(
+                    ext_feat, size=z.shape[-2:], mode="bilinear", align_corners=False
+                )
+            e = self.ext_proj(ext_feat)
+            parts.append(e)
+            parts.append(e * mask)
+        x = torch.cat(parts, dim=1)
         return self.net(x)
 
 
@@ -67,10 +91,15 @@ class MultiStageProcessReward(nn.Module):
         stage_channels: Sequence[int],
         hidden: int = 128,
         weight_temperature: float = 1.0,
+        ext_channels: int = 0,
     ):
         super().__init__()
+        self.ext_channels = ext_channels
         self.heads = nn.ModuleList(
-            [StageRewardHead(c, hidden=hidden) for c in stage_channels]
+            [
+                StageRewardHead(c, hidden=hidden, ext_channels=ext_channels)
+                for c in stage_channels
+            ]
         )
         # Weights softplus + softmax-ed across stages so they stay positive and sum to 1.
         # Initialized to favor later stages: w_l proportional to exp(l).
@@ -86,6 +115,7 @@ class MultiStageProcessReward(nn.Module):
         mask: torch.Tensor,
         pre: torch.Tensor,
         post: torch.Tensor,
+        ext_feat: torch.Tensor = None,
         return_stage: bool = False,
     ):
         diff = (post - pre).abs().mean(dim=1, keepdim=True)
@@ -94,7 +124,7 @@ class MultiStageProcessReward(nn.Module):
         per_stage = []
         fused = 0.0
         for w, head, z in zip(weights, self.heads, stages):
-            r = head(z, mask, diff)
+            r = head(z, mask, diff, ext_feat=ext_feat)
             per_stage.append(r)
             r_up = F.interpolate(r, size=target_size, mode="bilinear", align_corners=False)
             fused = fused + w * r_up
@@ -109,12 +139,13 @@ class MultiStageProcessReward(nn.Module):
         masks: torch.Tensor,
         pre: torch.Tensor,
         post: torch.Tensor,
+        ext_feat: torch.Tensor = None,
     ) -> torch.Tensor:
         """Score K candidate masks. masks: [B, K, 1, H, W]; returns [B, K, H, W]."""
         b, k = masks.shape[:2]
         rewards = []
         for i in range(k):
-            r = self.forward(stages, masks[:, i], pre, post)
+            r = self.forward(stages, masks[:, i], pre, post, ext_feat=ext_feat)
             rewards.append(r.squeeze(1))
         return torch.stack(rewards, dim=1)
 

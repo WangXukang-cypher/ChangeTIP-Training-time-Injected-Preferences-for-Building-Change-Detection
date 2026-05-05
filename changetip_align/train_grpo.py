@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 from .candidate import as_prob
 from .data import build_loader, split_batch
+from .external_prior import ExternalPrior
 from .imports import add_change3d_root
 from .models import ModelEMA, build_change3d_model, save_model, set_trainable_policy
 from .preference import (
@@ -36,12 +37,20 @@ def load_prm(path: str, device: str):
     ckpt = torch.load(path, map_location="cpu")
     if not isinstance(ckpt, dict) or "stage_channels" not in ckpt:
         raise ValueError(f"PRM checkpoint missing stage_channels: {path}")
-    prm = MultiStageProcessReward(ckpt["stage_channels"]).to(device)
+    ext_channels = ckpt.get("ext_channels", 0)
+    ext_backbone = ckpt.get("external_backbone", "")
+    prm = MultiStageProcessReward(
+        ckpt["stage_channels"], ext_channels=ext_channels,
+    ).to(device)
     prm.load_state_dict(ckpt["state_dict"], strict=True)
     prm.eval()
     for param in prm.parameters():
         param.requires_grad = False
-    return prm
+    ext_prior = None
+    if ext_channels > 0 and ext_backbone:
+        ext_prior = ExternalPrior(backbone=ext_backbone).to(device)
+        print(f"[ExternalPrior] loaded {ext_backbone} (out_channels={ext_channels})")
+    return prm, ext_prior
 
 
 @torch.no_grad()
@@ -136,7 +145,7 @@ def main():
         train_base_decoder=bool(args.train_base_decoder),
     )
 
-    prm = load_prm(args.prm_ckpt, args.device)
+    prm, ext_prior = load_prm(args.prm_ckpt, args.device)
     noise_module = LowRankSpatialNoise(sigma=args.sampling_sigma).to(args.device)
 
     optimizer = torch.optim.AdamW(
@@ -192,9 +201,15 @@ def main():
                 pol_old_expand = policy_logit_old.expand(-1, args.grpo_k, -1, -1)
                 logp_old = bernoulli_logprob(pol_old_expand, masks)
 
+                # External prior features (frozen) — gives PRM access to
+                # information independent of the change-detection training set.
+                ext_feat = ext_prior(pre, post) if ext_prior is not None else None
+
                 # PRM rewards per-pixel for each candidate
                 masks_for_prm = masks.unsqueeze(2)  # [B, K, 1, H, W]
-                rewards = prm.reward_for_candidates(stages_old, masks_for_prm, pre, post)  # [B, K, H, W]
+                rewards = prm.reward_for_candidates(
+                    stages_old, masks_for_prm, pre, post, ext_feat=ext_feat,
+                )  # [B, K, H, W]
 
                 # Spatial focus: pixels that disagree across the group
                 disagreement = masks.std(dim=1, keepdim=True)  # [B, 1, H, W]
@@ -212,7 +227,7 @@ def main():
                 )
                 # PRM reward on the *current* deterministic policy mask (for KL gate)
                 pol_mask_old = (torch.sigmoid(policy_logit_old) > 0.5).float()
-                gate_reward = prm(stages_old, pol_mask_old, pre, post)  # [B, 1, H, W]
+                gate_reward = prm(stages_old, pol_mask_old, pre, post, ext_feat=ext_feat)
 
             # --- POLICY UPDATE (with grad) ---
             out = policy.update_bcd_full(pre, post)
