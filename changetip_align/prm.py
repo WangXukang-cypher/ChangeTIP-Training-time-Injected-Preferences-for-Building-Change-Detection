@@ -6,19 +6,37 @@ import torch.nn.functional as F
 
 
 class StageRewardHead(nn.Module):
-    """A small fully-convolutional discriminator that scores a (feature, mask) pair
-    at one fusion stage. Mask and pre/post difference are bilinear-resized to the
-    stage resolution before concatenation."""
+    """Cross-modal discriminator that scores (stage feature z, mask, diff).
 
-    def __init__(self, feat_channels: int, hidden: int = 64):
+    Key design: explicit cross-products `mask * z`, `(1 - mask) * z`, `mask * diff`
+    are concatenated as input. This is essential — the discriminator must answer
+    "do features inside the mask look like change?" and "do features outside the
+    mask look like no-change?". Without explicit cross terms, a 2-layer conv has
+    to learn these element-wise products through convolution weights, which is
+    why the previous version stalled at gap ~0.15.
+
+    Also widened (hidden=128) and deepened (4 conv blocks) with a dilated layer
+    for a larger receptive field, since the deepest stages are at 8x8 spatial
+    resolution and need to integrate global context.
+    """
+
+    def __init__(self, feat_channels: int, hidden: int = 128):
         super().__init__()
-        in_ch = feat_channels + 1 + 1  # mask + |diff|.mean(channel)
+        # Inputs: z, mask*z, (1-mask)*z, mask, diff, mask*diff
+        in_ch = 3 * feat_channels + 3
+        groups = 8 if hidden % 8 == 0 else 1
         self.net = nn.Sequential(
             nn.Conv2d(in_ch, hidden, 3, padding=1),
-            nn.GroupNorm(8, hidden),
+            nn.GroupNorm(groups, hidden),
             nn.SiLU(inplace=True),
             nn.Conv2d(hidden, hidden, 3, padding=1),
-            nn.GroupNorm(8, hidden),
+            nn.GroupNorm(groups, hidden),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(hidden, hidden, 3, padding=2, dilation=2),
+            nn.GroupNorm(groups, hidden),
+            nn.SiLU(inplace=True),
+            nn.Conv2d(hidden, hidden, 3, padding=4, dilation=4),
+            nn.GroupNorm(groups, hidden),
             nn.SiLU(inplace=True),
             nn.Conv2d(hidden, 1, 1),
         )
@@ -28,8 +46,11 @@ class StageRewardHead(nn.Module):
             mask = F.interpolate(mask, size=z.shape[-2:], mode="bilinear", align_corners=False)
         if diff.shape[-2:] != z.shape[-2:]:
             diff = F.interpolate(diff, size=z.shape[-2:], mode="bilinear", align_corners=False)
-        x = torch.cat([z, mask, diff], dim=1)
-        return self.net(x)  # [B, 1, H_l, W_l] logit
+        z_in = z * mask
+        z_out = z * (1.0 - mask)
+        d_in = diff * mask
+        x = torch.cat([z, z_in, z_out, mask, diff, d_in], dim=1)
+        return self.net(x)
 
 
 class MultiStageProcessReward(nn.Module):
@@ -44,7 +65,7 @@ class MultiStageProcessReward(nn.Module):
     def __init__(
         self,
         stage_channels: Sequence[int],
-        hidden: int = 64,
+        hidden: int = 128,
         weight_temperature: float = 1.0,
     ):
         super().__init__()

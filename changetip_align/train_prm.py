@@ -86,7 +86,7 @@ def main():
     parser.add_argument("--decoder_head", default="dpt_residual", choices=["dpt_residual"])
     parser.add_argument("--head_channels", type=int, default=64)
     parser.add_argument("--head_init_scale", type=float, default=0.1)
-    parser.add_argument("--prm_hidden", type=int, default=64)
+    parser.add_argument("--prm_hidden", type=int, default=128)
     parser.add_argument("--sampling_sigma", type=float, default=4.0)
     parser.add_argument("--sampling_tau", type=float, default=1.0)
     parser.add_argument("--p_flip", type=float, default=0.05)
