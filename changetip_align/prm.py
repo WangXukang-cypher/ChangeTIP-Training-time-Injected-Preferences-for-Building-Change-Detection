@@ -98,24 +98,81 @@ class MultiStageProcessReward(nn.Module):
         return torch.stack(rewards, dim=1)
 
 
-def perturb_mask(mask: torch.Tensor, p_flip: float = 0.05, blob_sigma: float = 4.0):
-    """Generate a 'fake but plausible' mask by random pixel flips followed by smoothing.
-    Returns a mask in {0,1} with the same shape as input."""
-    rand = torch.rand_like(mask)
-    flipped = torch.where(rand < p_flip, 1.0 - mask, mask)
-    return flipped
+def perturb_mask(mask: torch.Tensor, p_flip: float = 0.20, mode: str = "mix"):
+    """Generate a 'fake but distinguishable' mask.
+
+    Modes:
+        flip:  iid pixel flips with probability p_flip.
+        erase: zero out a random rectangle (false-negative style fake).
+        smear: dilate the GT mask with a max-pool to create false-positive style fake.
+        shift: translate the mask by a few pixels.
+        mix:   per-sample randomly choose one of the above.
+
+    The previous version used p_flip=0.05 which left 95% of pixels identical to
+    GT and flooded the discriminator with unsolvable label noise. Structured
+    perturbations create masks that are coherent but clearly *wrong*, providing
+    the strong negative signal the PRM needs.
+    """
+    b, _, h, w = mask.shape
+    out = mask.clone()
+
+    if mode == "flip" or mode == "mix":
+        rand = torch.rand_like(mask)
+        flipped = torch.where(rand < p_flip, 1.0 - mask, mask)
+    if mode == "flip":
+        return flipped
+
+    if mode == "erase" or mode == "smear" or mode == "shift" or mode == "mix":
+        for i in range(b):
+            if mode == "mix":
+                choice = int(torch.randint(0, 4, (1,)).item())
+            else:
+                choice = {"flip": 0, "erase": 1, "smear": 2, "shift": 3}[mode]
+            if choice == 0:
+                out[i] = flipped[i]
+            elif choice == 1:
+                rh = int(torch.randint(h // 6, h // 2, (1,)).item())
+                rw = int(torch.randint(w // 6, w // 2, (1,)).item())
+                ry = int(torch.randint(0, h - rh + 1, (1,)).item())
+                rx = int(torch.randint(0, w - rw + 1, (1,)).item())
+                out[i, 0, ry:ry + rh, rx:rx + rw] = 0.0
+            elif choice == 2:
+                k = int(torch.randint(5, 13, (1,)).item())
+                if k % 2 == 0:
+                    k += 1
+                out[i:i + 1] = F.max_pool2d(mask[i:i + 1], kernel_size=k, stride=1, padding=k // 2)
+            elif choice == 3:
+                dy = int(torch.randint(-12, 13, (1,)).item())
+                dx = int(torch.randint(-12, 13, (1,)).item())
+                shifted = torch.roll(mask[i], shifts=(dy, dx), dims=(-2, -1))
+                out[i] = shifted
+        return out
+    raise ValueError(f"unknown perturb mode: {mode}")
 
 
 def prm_discriminator_loss(
     real_reward: torch.Tensor,
     fake_reward: torch.Tensor,
     label_smoothing: float = 0.05,
+    margin: float = 1.0,
 ):
+    """Per-pixel BCE on the discriminator output, plus an image-level hinge that
+    forces the mean reward of real to exceed mean reward of fake by `margin`.
+
+    The image-level hinge is what actually breaks ties when the per-pixel signal
+    is ambiguous (e.g., shifted or smeared fakes that share many pixels with GT)
+    by giving a global "this whole mask is wrong" gradient.
+    """
     real_target = torch.full_like(real_reward, 1.0 - label_smoothing)
     fake_target = torch.full_like(fake_reward, label_smoothing)
     real_loss = F.binary_cross_entropy_with_logits(real_reward, real_target)
     fake_loss = F.binary_cross_entropy_with_logits(fake_reward, fake_target)
-    return 0.5 * (real_loss + fake_loss)
+    bce = 0.5 * (real_loss + fake_loss)
+
+    real_img = real_reward.mean(dim=(1, 2, 3))
+    fake_img = fake_reward.mean(dim=(1, 2, 3))
+    hinge = F.relu(margin - (real_img - fake_img)).mean()
+    return bce + 0.5 * hinge
 
 
 def prm_monotonicity_loss(per_stage_real: List[torch.Tensor], margin: float = 0.05):

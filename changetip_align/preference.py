@@ -109,9 +109,16 @@ def pixel_grpo_loss(
 
     log_ratio = logp_new - logp_old.detach()
     ratio = torch.exp(log_ratio.clamp(-10.0, 10.0))
-    surr1 = ratio * advantage
-    surr2 = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * advantage
-    pixel_loss = -torch.minimum(surr1, surr2)  # [B, K, H, W]
+    # Trust-region mask: 1 where the PPO clip is *inactive* (ratio inside the
+    # trust region OR pushing in the direction we want), 0 where the clip stops
+    # the gradient. At single-epoch on-policy update the mask is all-ones.
+    in_trust = ~(((advantage > 0) & (ratio > 1.0 + clip_eps)) |
+                 ((advantage < 0) & (ratio < 1.0 - clip_eps)))
+    in_trust = in_trust.float()
+    # Score-function loss with PPO mask. Gradient at ratio=1 is exactly the
+    # standard PPO gradient -A * grad(logp_new); displayed scalar is non-zero
+    # because cov(A, logp_new) over K is non-zero.
+    pixel_loss = -in_trust * advantage * logp_new
 
     if focus is None:
         return pixel_loss.mean()

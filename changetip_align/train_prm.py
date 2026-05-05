@@ -32,28 +32,37 @@ def validate(args, model, prm, loader, noise_module):
     fake_correct = 0.0
     total = 0
     iou_total = 0.0
+    real_mean_sum = 0.0
+    fake_mean_sum = 0.0
     for batch in loader:
         pre, post, target = split_batch(batch, args.device)
         out = model.update_bcd_full(pre, post)
         stages = out["stages"]
-        # real
         r_real = prm(stages, target, pre, post)
-        # fake
         logits = stochastic_logits(
             out["base_logit"], out["delta_logit"], out["residual_scale"],
             noise_module, k=1, tau=args.sampling_tau,
         )
-        fake_mask = sample_masks(logits)
+        policy_mask = sample_masks(logits)
+        gt_perturbed = perturb_mask(target, p_flip=args.p_flip, mode="mix")
+        b = pre.shape[0]
+        use_policy = torch.rand(b, device=pre.device) < 0.5
+        use_policy = use_policy.view(-1, 1, 1, 1).float()
+        fake_mask = use_policy * policy_mask + (1.0 - use_policy) * gt_perturbed
         r_fake = prm(stages, fake_mask, pre, post)
-        real_correct += (r_real > 0).float().mean().item() * pre.shape[0]
-        fake_correct += (r_fake < 0).float().mean().item() * pre.shape[0]
-        iou_total += iou_pair(fake_mask, target).mean().item() * pre.shape[0]
-        total += pre.shape[0]
+        real_correct += (r_real > 0).float().mean().item() * b
+        fake_correct += (r_fake < 0).float().mean().item() * b
+        iou_total += iou_pair(fake_mask, target).mean().item() * b
+        real_mean_sum += r_real.mean().item() * b
+        fake_mean_sum += r_fake.mean().item() * b
+        total += b
     prm.train()
     return {
         "real_acc": real_correct / max(1, total),
         "fake_acc": fake_correct / max(1, total),
         "fake_iou": iou_total / max(1, total),
+        "real_logit": real_mean_sum / max(1, total),
+        "fake_logit": fake_mean_sum / max(1, total),
     }
 
 
@@ -116,8 +125,9 @@ def main():
                     noise_module, k=1, tau=args.sampling_tau,
                 )
                 policy_mask = sample_masks(logits)
-                gt_perturbed = perturb_mask(target, p_flip=args.p_flip)
-                # half/half within batch
+                gt_perturbed = perturb_mask(target, p_flip=args.p_flip, mode="mix")
+                # half/half within batch — both branches now produce IoU<0.7 fakes,
+                # so the discriminator gets a clean negative signal everywhere.
                 b = pre.shape[0]
                 use_policy = torch.rand(b, device=pre.device) < 0.5
                 use_policy = use_policy.view(-1, 1, 1, 1).float()
@@ -150,7 +160,9 @@ def main():
         print(
             f"[epoch {epoch:03d}] train_loss={train_loss:.4f} "
             f"real_acc={val['real_acc']:.4f} fake_acc={val['fake_acc']:.4f} "
-            f"fake_iou={val['fake_iou']:.4f}"
+            f"fake_iou={val['fake_iou']:.4f} "
+            f"r_real={val['real_logit']:+.3f} r_fake={val['fake_logit']:+.3f} "
+            f"gap={val['real_logit'] - val['fake_logit']:+.3f}"
         )
         if score > best:
             best = score
