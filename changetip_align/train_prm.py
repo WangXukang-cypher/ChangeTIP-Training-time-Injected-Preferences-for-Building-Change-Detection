@@ -108,6 +108,9 @@ def main():
     noise_module = LowRankSpatialNoise(sigma=args.sampling_sigma).to(args.device)
 
     optimizer = torch.optim.AdamW(prm.parameters(), lr=args.lr, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=args.epochs, eta_min=args.lr * 0.05
+    )
 
     best = -1.0
     for epoch in range(1, args.epochs + 1):
@@ -154,9 +157,12 @@ def main():
             running += loss.item() * pre.shape[0]
             count += pre.shape[0]
 
+        scheduler.step()
         val = validate(args, model, prm, val_loader, noise_module)
         train_loss = running / max(1, count)
-        score = 0.5 * (val["real_acc"] + val["fake_acc"])
+        # Use gap instead of acc-sum: gap is monotonically meaningful even when
+        # absolute thresholds drift, while acc depends on a fixed threshold (0).
+        score = val["real_logit"] - val["fake_logit"]
         print(
             f"[epoch {epoch:03d}] train_loss={train_loss:.4f} "
             f"real_acc={val['real_acc']:.4f} fake_acc={val['fake_acc']:.4f} "

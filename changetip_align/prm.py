@@ -175,14 +175,19 @@ def prm_discriminator_loss(
     real_reward: torch.Tensor,
     fake_reward: torch.Tensor,
     label_smoothing: float = 0.05,
+    bt_weight: float = 1.0,
+    hinge_weight: float = 0.5,
     margin: float = 1.0,
 ):
-    """Per-pixel BCE on the discriminator output, plus an image-level hinge that
-    forces the mean reward of real to exceed mean reward of fake by `margin`.
+    """Per-pixel BCE + image-level Bradley-Terry pairwise loss + a residual
+    hinge.
 
-    The image-level hinge is what actually breaks ties when the per-pixel signal
-    is ambiguous (e.g., shifted or smeared fakes that share many pixels with GT)
-    by giving a global "this whole mask is wrong" gradient.
+    BCE anchors the absolute level (real around +2.94, fake around -2.94 with
+    label_smoothing 0.05). BT `-log sigma(r_real - r_fake)` is the standard
+    RLHF reward-model objective and provides a non-vanishing gradient on the
+    image-level gap regardless of absolute position. The hinge keeps a strong
+    linear gradient when the gap is below `margin`, which empirically helps the
+    early-training phase where BT alone is sigmoid-soft (gradient ~0.5 at gap=0).
     """
     real_target = torch.full_like(real_reward, 1.0 - label_smoothing)
     fake_target = torch.full_like(fake_reward, label_smoothing)
@@ -192,8 +197,9 @@ def prm_discriminator_loss(
 
     real_img = real_reward.mean(dim=(1, 2, 3))
     fake_img = fake_reward.mean(dim=(1, 2, 3))
+    bt = F.softplus(-(real_img - fake_img)).mean()
     hinge = F.relu(margin - (real_img - fake_img)).mean()
-    return bce + 0.5 * hinge
+    return bce + bt_weight * bt + hinge_weight * hinge
 
 
 def prm_monotonicity_loss(per_stage_real: List[torch.Tensor], margin: float = 0.05):
