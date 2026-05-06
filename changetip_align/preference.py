@@ -126,6 +126,33 @@ def pixel_grpo_loss(
     return (pixel_loss * focus).sum() / (focus.sum() + 1e-6)
 
 
+def direct_prm_loss(
+    prm,
+    stages,
+    policy_prob: torch.Tensor,
+    pre: torch.Tensor,
+    post: torch.Tensor,
+    ext_feat: torch.Tensor = None,
+    focus: torch.Tensor = None,
+):
+    """Direct, off-policy PRM-as-differentiable-loss.
+
+    Bypasses GRPO's K-candidate sampling. We feed the policy's continuous
+    probability map straight into the PRM and minimize -E[PRM(prob)]. The
+    gradient flows back through the PRM (whose weights are frozen) into the
+    policy, so any direction in mask-space the PRM doesn't like is pushed
+    against. This is what we actually want when the PRM is well-trained but
+    GRPO's K candidates are too similar to differentiate.
+
+    The PRM was trained on binary masks but its conv operations are smooth in
+    the mask channel; treating prob as a soft mask gives a useful gradient.
+    """
+    score = prm(stages, policy_prob, pre, post, ext_feat=ext_feat)
+    if focus is None:
+        return -score.mean()
+    return -(score * focus).sum() / (focus.sum() + 1e-6)
+
+
 def prm_gated_kl(
     policy_logit: torch.Tensor,
     ref_logit: torch.Tensor,

@@ -99,6 +99,10 @@ def main():
                         help="1 = enable external pretrained-encoder prior in PRM")
     parser.add_argument("--external_backbone", default="resnet18",
                         choices=["resnet18", "dinov2_vits14"])
+    parser.add_argument("--min_change_ratio", type=float, default=0.0,
+                        help="Filter train samples whose change-mask ratio is below this "
+                             "threshold (e.g. 0.02 = at least 2%% positive pixels). "
+                             "0 disables filtering. Only applied to the train split.")
     args = parser.parse_args()
 
     add_change3d_root(args.change3d_root)

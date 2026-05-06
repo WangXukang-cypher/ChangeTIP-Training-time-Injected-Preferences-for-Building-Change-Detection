@@ -13,6 +13,7 @@ from .models import ModelEMA, build_change3d_model, save_model, set_trainable_po
 from .preference import (
     boundary_loss,
     cosine_lr,
+    direct_prm_loss,
     false_positive_penalty,
     pixel_grpo_loss,
     prm_gated_kl,
@@ -119,6 +120,9 @@ def main():
     # Loss weights
     parser.add_argument("--lambda_sup", type=float, default=1.0)
     parser.add_argument("--lambda_grpo", type=float, default=1.0)
+    parser.add_argument("--lambda_prm_direct", type=float, default=0.0,
+                        help="Direct PRM-as-loss term. Set to >0 to enable; "
+                             "GRPO and direct can run together if both lambdas are >0.")
     parser.add_argument("--lambda_kl", type=float, default=3e-3)
     parser.add_argument("--lambda_boundary", type=float, default=0.3)
     parser.add_argument("--lambda_fp", type=float, default=0.3)
@@ -127,6 +131,10 @@ def main():
     parser.add_argument("--grpo_focus_dilate", type=int, default=5)
     parser.add_argument("--eval_tta", type=int, default=0)
     parser.add_argument("--eval_split", default="val", choices=["val", "test"])
+    parser.add_argument("--min_change_ratio", type=float, default=0.0,
+                        help="Filter train samples whose change-mask ratio is below this "
+                             "threshold (e.g. 0.02 = at least 2%% positive pixels). "
+                             "0 disables filtering. Only applied to the train split.")
     args = parser.parse_args()
 
     add_change3d_root(args.change3d_root)
@@ -249,9 +257,20 @@ def main():
             bnd = boundary_loss(policy_prob, target)
             fp = false_positive_penalty(policy_prob, target)
 
+            # Direct PRM-as-loss term. Gradient flows through PRM (frozen
+            # weights) into the policy. This bypasses GRPO's K-candidate
+            # sampling and uses the PRM's full discriminative power directly.
+            if args.lambda_prm_direct > 0.0:
+                prm_direct = direct_prm_loss(
+                    prm, out["stages"], policy_prob, pre, post, ext_feat=ext_feat,
+                )
+            else:
+                prm_direct = policy_prob.new_zeros(())
+
             loss = (
                 args.lambda_sup * sup
                 + args.lambda_grpo * grpo
+                + args.lambda_prm_direct * prm_direct
                 + args.lambda_kl * kl
                 + args.lambda_boundary * bnd
                 + args.lambda_fp * fp
@@ -269,6 +288,7 @@ def main():
                 print(
                     f"[step {global_step:06d}] lr={lr:.2e} tau={tau:.2f} "
                     f"sup={sup.item():.4f} grpo={grpo.item():.4f} "
+                    f"prm_d={prm_direct.item():+.4f} "
                     f"kl={kl.item():.4f} bnd={bnd.item():.4f} fp={fp.item():.4f} "
                     f"r_std={adv_std:.4f}"
                 )
