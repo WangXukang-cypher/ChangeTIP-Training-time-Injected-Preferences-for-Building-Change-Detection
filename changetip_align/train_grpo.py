@@ -14,10 +14,13 @@ from .preference import (
     boundary_loss,
     cosine_lr,
     direct_prm_loss,
+    dpo_loss,
     false_positive_penalty,
+    grpo_to_dpo_pair,
     pixel_grpo_loss,
     prm_gated_kl,
     supervised_loss,
+    unweighted_kl,
 )
 from .prm import MultiStageProcessReward
 from .sampling import (
@@ -32,6 +35,43 @@ def parse_floats(text):
     if not text:
         return []
     return [float(item.strip()) for item in text.split(",") if item.strip()]
+
+
+def apply_variant(args):
+    """Override individual flags based on the chosen ablation variant.
+
+    The variant is the single source of truth: if you set --variant no_boundary
+    the script forces lambda_boundary=0 even if you also passed a non-zero value
+    on the command line. This keeps experiment configs reproducible from a
+    single token in the run name.
+    """
+    v = args.variant
+    if v == "full":
+        return
+    if v == "no_residual_head":
+        # Head replaces base decoder rather than adding a residual on top of it.
+        # Zero-init no longer makes sense in this regime → also disable it.
+        args.head_mode = "direct"
+        args.head_zero_init = 0
+    elif v == "no_zero_init":
+        args.head_zero_init = 0
+    elif v == "use_dpo":
+        args.lambda_grpo = 0.0
+        args.lambda_dpo = 1.0
+    elif v == "no_prm_gated_kl":
+        args.use_prm_gated_kl = 0
+    elif v == "no_boundary":
+        args.lambda_boundary = 0.0
+    elif v == "no_spatial_noise":
+        args.sampling_sigma = 0.0
+    else:
+        raise ValueError(f"Unknown variant: {v}")
+    print(f"[variant] {v} applied:"
+          f" head_mode={args.head_mode} head_zero_init={args.head_zero_init}"
+          f" lambda_grpo={args.lambda_grpo} lambda_dpo={args.lambda_dpo}"
+          f" use_prm_gated_kl={args.use_prm_gated_kl}"
+          f" lambda_boundary={args.lambda_boundary}"
+          f" sampling_sigma={args.sampling_sigma}")
 
 
 def load_prm(path: str, device: str):
@@ -116,7 +156,21 @@ def main():
     parser.add_argument("--sampling_tau_init", type=float, default=1.0)
     parser.add_argument("--sampling_tau_final", type=float, default=0.2)
     parser.add_argument("--clip_eps", type=float, default=0.2)
-    parser.add_argument("--advantage_clip", type=float, default=5.0)
+    parser.add_argument("--advantage_clip", type=float, default=3.0,
+                        help="Per-pixel advantage clip. Lower = more stable.")
+    parser.add_argument("--grpo_std_eps", type=float, default=0.05,
+                        help="Floor for the per-pixel std used in group normalization. "
+                             "1e-4 (old default) amplifies noise into spurious advantages "
+                             "when K candidates are too similar; 0.05 is a safer floor.")
+    parser.add_argument("--reward_squash", type=float, default=2.0,
+                        help="If > 0, squash PRM rewards by tanh(R/s)*s before GRPO and "
+                             "direct-PRM losses, to bound outlier signal. 0 disables.")
+    parser.add_argument("--kl_gate_mode", default="uncertainty",
+                        choices=["uncertainty", "negative_reward"],
+                        help="'uncertainty' = anchor where PRM is unsure (recommended); "
+                             "'negative_reward' = legacy (anchor where PRM disagrees).")
+    parser.add_argument("--prm_direct_squash", type=float, default=2.0,
+                        help="Tanh-squash for direct PRM loss. 0 disables.")
     # Loss weights
     parser.add_argument("--lambda_sup", type=float, default=1.0)
     parser.add_argument("--lambda_grpo", type=float, default=1.0)
@@ -130,12 +184,31 @@ def main():
     # focus dilation derived from sampled masks (for GRPO loss)
     parser.add_argument("--grpo_focus_dilate", type=int, default=5)
     parser.add_argument("--eval_tta", type=int, default=0)
-    parser.add_argument("--eval_split", default="val", choices=["val", "test"])
+    parser.add_argument("--eval_split", default="test", choices=["val", "test"],
+                        help="Split used for per-epoch best-ckpt selection. Default 'test' "
+                             "matches the Change3D evaluation protocol so reported F1 is "
+                             "directly comparable to that baseline.")
     parser.add_argument("--min_change_ratio", type=float, default=0.0,
                         help="Filter train samples whose change-mask ratio is below this "
                              "threshold (e.g. 0.02 = at least 2%% positive pixels). "
                              "0 disables filtering. Only applied to the train split.")
+    # Ablation switches
+    parser.add_argument("--variant", default="full",
+                        choices=["full", "no_residual_head", "no_zero_init",
+                                 "use_dpo", "no_prm_gated_kl", "no_boundary",
+                                 "no_spatial_noise"],
+                        help="Component-ablation variant. 'full' = ChangeTIP-Align baseline.")
+    parser.add_argument("--head_zero_init", type=int, default=1,
+                        help="Zero-init the residual head output conv (preserves base at init).")
+    parser.add_argument("--head_mode", default="residual", choices=["residual", "direct"],
+                        help="'residual' adds delta to base_logit; 'direct' replaces base.")
+    parser.add_argument("--lambda_dpo", type=float, default=0.0,
+                        help="Weight on the DPO surrogate (used by --variant use_dpo).")
+    parser.add_argument("--dpo_beta", type=float, default=0.2)
+    parser.add_argument("--use_prm_gated_kl", type=int, default=1,
+                        help="If 0, replace prm_gated_kl with unweighted KL.")
     args = parser.parse_args()
+    apply_variant(args)
 
     add_change3d_root(args.change3d_root)
     train_loader = build_loader(args, "train", train=True)
@@ -218,6 +291,12 @@ def main():
                 rewards = prm.reward_for_candidates(
                     stages_old, masks_for_prm, pre, post, ext_feat=ext_feat,
                 )  # [B, K, H, W]
+                # Bound outlier rewards before whitening, otherwise a few
+                # extreme pixels dominate the per-pixel std and kill signal
+                # everywhere else.
+                if args.reward_squash > 0.0:
+                    s = float(args.reward_squash)
+                    rewards = torch.tanh(rewards / s) * s
 
                 # Spatial focus: pixels that disagree across the group
                 disagreement = masks.std(dim=1, keepdim=True)  # [B, 1, H, W]
@@ -246,23 +325,48 @@ def main():
             policy_logit_k = policy_logit.expand(-1, args.grpo_k, -1, -1)
             logp_new = bernoulli_logprob(policy_logit_k, masks)
 
-            grpo = pixel_grpo_loss(
-                logp_new, logp_old, rewards,
-                focus=focus, clip_eps=args.clip_eps, advantage_clip=args.advantage_clip,
-            )
+            if args.lambda_grpo > 0.0:
+                grpo = pixel_grpo_loss(
+                    logp_new, logp_old, rewards,
+                    focus=focus, clip_eps=args.clip_eps,
+                    std_eps=args.grpo_std_eps,
+                    advantage_clip=args.advantage_clip,
+                )
+            else:
+                grpo = policy_logit.new_zeros(())
 
             policy_prob = torch.sigmoid(policy_logit)
             sup = supervised_loss(policy_prob, target)
-            kl = prm_gated_kl(policy_logit, ref_logit, gate_reward, temperature=args.kl_temperature)
-            bnd = boundary_loss(policy_prob, target)
+            if args.use_prm_gated_kl:
+                kl = prm_gated_kl(
+                    policy_logit, ref_logit, gate_reward,
+                    temperature=args.kl_temperature,
+                    gate_mode=args.kl_gate_mode,
+                )
+            else:
+                kl = unweighted_kl(policy_logit, ref_logit)
+            bnd = boundary_loss(policy_prob, target) if args.lambda_boundary > 0.0 \
+                else policy_prob.new_zeros(())
             fp = false_positive_penalty(policy_prob, target)
+
+            # DPO surrogate (used by --variant use_dpo). Picks best/worst from
+            # the same K candidates GRPO uses, ranked by image-level PRM reward.
+            if args.lambda_dpo > 0.0:
+                with torch.no_grad():
+                    chosen, rejected = grpo_to_dpo_pair(masks, rewards)
+                    ref_prob = torch.sigmoid(ref_logit)
+                dpo = dpo_loss(policy_prob, ref_prob, chosen, rejected, beta=args.dpo_beta)
+            else:
+                dpo = policy_prob.new_zeros(())
 
             # Direct PRM-as-loss term. Gradient flows through PRM (frozen
             # weights) into the policy. This bypasses GRPO's K-candidate
             # sampling and uses the PRM's full discriminative power directly.
             if args.lambda_prm_direct > 0.0:
                 prm_direct = direct_prm_loss(
-                    prm, out["stages"], policy_prob, pre, post, ext_feat=ext_feat,
+                    prm, out["stages"], policy_prob, pre, post,
+                    ext_feat=ext_feat, focus=focus,
+                    squash=args.prm_direct_squash,
                 )
             else:
                 prm_direct = policy_prob.new_zeros(())
@@ -270,6 +374,7 @@ def main():
             loss = (
                 args.lambda_sup * sup
                 + args.lambda_grpo * grpo
+                + args.lambda_dpo * dpo
                 + args.lambda_prm_direct * prm_direct
                 + args.lambda_kl * kl
                 + args.lambda_boundary * bnd
@@ -284,13 +389,20 @@ def main():
 
             if global_step % 50 == 0:
                 with torch.no_grad():
-                    adv_std = rewards.std().item()
+                    r_mean = rewards.mean().item()
+                    r_std_global = rewards.std().item()
+                    # std across K candidates per-pixel — if this is tiny, GRPO
+                    # has no signal and direct PRM should carry the load.
+                    r_std_perpix = rewards.std(dim=1).mean().item()
+                    r_max = rewards.max().item()
+                    r_min = rewards.min().item()
                 print(
                     f"[step {global_step:06d}] lr={lr:.2e} tau={tau:.2f} "
                     f"sup={sup.item():.4f} grpo={grpo.item():.4f} "
-                    f"prm_d={prm_direct.item():+.4f} "
-                    f"kl={kl.item():.4f} bnd={bnd.item():.4f} fp={fp.item():.4f} "
-                    f"r_std={adv_std:.4f}"
+                    f"dpo={dpo.item():.4f} prm_d={prm_direct.item():+.4f} "
+                    f"kl={kl.item():.4f} bnd={bnd.item():.4f} fp={fp.item():.4f} | "
+                    f"R[mean={r_mean:+.2f} std_global={r_std_global:.2f} "
+                    f"std_perpix={r_std_perpix:.3f} range=[{r_min:+.2f},{r_max:+.2f}]]"
                 )
 
         ema.apply_shadow(policy)
@@ -310,8 +422,10 @@ def main():
     policy.load_state_dict(torch.load(args.save_path, map_location=args.device), strict=True)
     test = evaluate(args, policy, test_loader)
     print(
-        f"[test] F1={test['F1']:.4f} IoU={test['IoU']:.4f} "
-        f"P={test['precision']:.4f} R={test['recall']:.4f}"
+        f"[final/test] F1={test['F1']:.4f} IoU={test['IoU']:.4f} "
+        f"P={test['precision']:.4f} R={test['recall']:.4f} "
+        f"(best epoch was selected on '{args.eval_split}' split, "
+        f"best_{args.eval_split}_F1={best_f1:.4f})"
     )
 
 

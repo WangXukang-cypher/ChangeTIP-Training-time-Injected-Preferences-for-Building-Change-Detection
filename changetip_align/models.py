@@ -9,13 +9,22 @@ from .imports import make_change3d_args
 class ChangeTIPAlignModel(nn.Module):
     """Wrap Change3D with a TIPS-inspired residual dense head for BCD."""
 
-    def __init__(self, base_model, head_channels=64, head_init_scale=0.1):
+    def __init__(
+        self,
+        base_model,
+        head_channels=64,
+        head_init_scale=0.1,
+        head_zero_init: bool = True,
+        head_mode: str = "residual",
+    ):
         super().__init__()
         self.base_model = base_model
         self.spatial_head = SpatialResidualChangeHead(
             in_channels=tuple(base_model.embed_dims),
             channels=head_channels,
             init_scale=head_init_scale,
+            zero_init=head_zero_init,
+            mode=head_mode,
         )
 
     def update_bcd(self, x, y):
@@ -103,6 +112,8 @@ def build_change3d_model(args, ckpt_path=None, train=False):
             base_model,
             head_channels=getattr(args, "head_channels", 64),
             head_init_scale=getattr(args, "head_init_scale", 0.1),
+            head_zero_init=bool(getattr(args, "head_zero_init", 1)),
+            head_mode=getattr(args, "head_mode", "residual"),
         )
     else:
         raise ValueError(f"Unknown decoder_head: {decoder_head}")

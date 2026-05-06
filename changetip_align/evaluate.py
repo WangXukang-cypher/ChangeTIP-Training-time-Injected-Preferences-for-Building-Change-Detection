@@ -58,6 +58,10 @@ def main():
     parser.add_argument("--decoder_head", default="dpt_residual", choices=["baseline", "dpt_residual"])
     parser.add_argument("--head_channels", type=int, default=64)
     parser.add_argument("--head_init_scale", type=float, default=0.1)
+    parser.add_argument("--head_zero_init", type=int, default=1,
+                        help="Match the value used at training time.")
+    parser.add_argument("--head_mode", default="residual", choices=["residual", "direct"],
+                        help="Match the value used at training time.")
     parser.add_argument("--eval_tta", type=int, default=0)
     args = parser.parse_args()
     thresholds = [float(x) for x in args.thresholds.split(",") if x.strip()]

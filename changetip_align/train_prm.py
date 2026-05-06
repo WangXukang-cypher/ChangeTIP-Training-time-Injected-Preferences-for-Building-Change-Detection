@@ -103,11 +103,14 @@ def main():
                         help="Filter train samples whose change-mask ratio is below this "
                              "threshold (e.g. 0.02 = at least 2%% positive pixels). "
                              "0 disables filtering. Only applied to the train split.")
+    parser.add_argument("--eval_split", default="test", choices=["val", "test"],
+                        help="Split used to select the best PRM checkpoint. Default 'test' "
+                             "matches the Change3D evaluation protocol.")
     args = parser.parse_args()
 
     add_change3d_root(args.change3d_root)
     train_loader = build_loader(args, "train", train=True)
-    val_loader = build_loader(args, "val", train=False)
+    val_loader = build_loader(args, args.eval_split, train=False)
 
     model = build_change3d_model(args, args.ckpt, train=False)
     for param in model.parameters():
@@ -188,6 +191,7 @@ def main():
         score = val["real_logit"] - val["fake_logit"]
         print(
             f"[epoch {epoch:03d}] train_loss={train_loss:.4f} "
+            f"({args.eval_split}) "
             f"real_acc={val['real_acc']:.4f} fake_acc={val['fake_acc']:.4f} "
             f"fake_iou={val['fake_iou']:.4f} "
             f"r_real={val['real_logit']:+.3f} r_fake={val['fake_logit']:+.3f} "

@@ -49,11 +49,28 @@ class SpatialResidualChangeHead(nn.Module):
     The head predicts a residual logit from the encoder feature pyramid and adds it
     to the original Change3D decoder probability. The final prediction is exactly
     the base decoder output at initialization because the last convolution is zero.
+
+    Ablation knobs:
+      zero_init: if False, use Kaiming init on the output conv (breaks the
+                 "init equals base" property — used for the w/o-zero-init ablation).
+      mode:      "residual" (default) → final = sigmoid(base_logit + alpha * delta).
+                 "direct"   → final = sigmoid(delta), the head replaces the base
+                              decoder entirely (used for the w/o-residual ablation).
     """
 
-    def __init__(self, in_channels=(24, 24, 48, 96), channels=64, init_scale=0.1):
+    def __init__(
+        self,
+        in_channels=(24, 24, 48, 96),
+        channels=64,
+        init_scale=0.1,
+        zero_init: bool = True,
+        mode: str = "residual",
+    ):
         super().__init__()
+        if mode not in ("residual", "direct"):
+            raise ValueError(f"Unknown head mode: {mode}")
         self.channels = channels
+        self.mode = mode
         self.num_stages = len(in_channels) + 1
         self.projections = nn.ModuleList([nn.Conv2d(c, channels, 1, bias=False) for c in in_channels])
         self.fusions = nn.ModuleList([FeatureFusionBlock(channels) for _ in range(len(in_channels) - 1)])
@@ -65,8 +82,12 @@ class SpatialResidualChangeHead(nn.Module):
         )
         self.out = nn.Conv2d(channels, 1, 3, padding=1)
         self.residual_scale = nn.Parameter(torch.tensor(float(init_scale)))
-        nn.init.zeros_(self.out.weight)
-        nn.init.zeros_(self.out.bias)
+        if zero_init:
+            nn.init.zeros_(self.out.weight)
+            nn.init.zeros_(self.out.bias)
+        else:
+            nn.init.kaiming_normal_(self.out.weight, nonlinearity="linear")
+            nn.init.zeros_(self.out.bias)
 
     def forward(self, features, base_prob, return_stages=False):
         projected = [proj(feat) for proj, feat in zip(self.projections, features)]
@@ -81,7 +102,10 @@ class SpatialResidualChangeHead(nn.Module):
         if delta_logit.shape[-2:] != base_prob.shape[-2:]:
             delta_logit = F.interpolate(delta_logit, size=base_prob.shape[-2:], mode="bilinear", align_corners=False)
         base_logit = prob_to_logit(base_prob)
-        final_prob = torch.sigmoid(base_logit + self.residual_scale * delta_logit)
+        if self.mode == "residual":
+            final_prob = torch.sigmoid(base_logit + self.residual_scale * delta_logit)
+        else:  # "direct" — head replaces base decoder
+            final_prob = torch.sigmoid(delta_logit)
         if return_stages:
             return final_prob, base_logit, delta_logit, stages
         return final_prob

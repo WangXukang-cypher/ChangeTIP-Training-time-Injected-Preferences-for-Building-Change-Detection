@@ -28,17 +28,23 @@ class LowRankSpatialNoise(nn.Module):
 
     def __init__(self, sigma: float = 4.0):
         super().__init__()
-        self.sigma = sigma
-        kernel, padding = _gaussian_kernel(sigma)
-        self.register_buffer("kernel", kernel, persistent=False)
-        self.padding = padding
+        self.sigma = float(sigma)
+        if self.sigma > 0.0:
+            kernel, padding = _gaussian_kernel(self.sigma)
+            self.register_buffer("kernel", kernel, persistent=False)
+            self.padding = padding
+        else:
+            self.kernel = None
+            self.padding = 0
 
     def forward(self, batch: int, k: int, height: int, width: int, device, dtype):
         z = torch.randn(batch * k, 1, height, width, device=device, dtype=dtype)
-        z = F.conv2d(z, self.kernel, padding=self.padding)
-        # normalize each sample to roughly unit variance
-        std = z.flatten(1).std(dim=1, keepdim=True).view(-1, 1, 1, 1).clamp(min=1e-6)
-        z = z / std
+        if self.sigma > 0.0:
+            z = F.conv2d(z, self.kernel, padding=self.padding)
+            # normalize each sample to roughly unit variance
+            std = z.flatten(1).std(dim=1, keepdim=True).view(-1, 1, 1, 1).clamp(min=1e-6)
+            z = z / std
+        # sigma <= 0 → i.i.d. Gaussian (used by w/o-spatial-noise ablation).
         return z.view(batch, k, height, width)
 
 

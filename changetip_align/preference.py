@@ -85,8 +85,8 @@ def pixel_grpo_loss(
     rewards: torch.Tensor,
     focus: torch.Tensor = None,
     clip_eps: float = 0.2,
-    std_eps: float = 1e-4,
-    advantage_clip: float = 5.0,
+    std_eps: float = 0.05,
+    advantage_clip: float = 3.0,
 ):
     """Pixel-level Group Relative Policy Optimization loss.
 
@@ -134,6 +134,7 @@ def direct_prm_loss(
     post: torch.Tensor,
     ext_feat: torch.Tensor = None,
     focus: torch.Tensor = None,
+    squash: float = 0.0,
 ):
     """Direct, off-policy PRM-as-differentiable-loss.
 
@@ -144,10 +145,14 @@ def direct_prm_loss(
     against. This is what we actually want when the PRM is well-trained but
     GRPO's K candidates are too similar to differentiate.
 
-    The PRM was trained on binary masks but its conv operations are smooth in
-    the mask channel; treating prob as a soft mask gives a useful gradient.
+    squash > 0: tanh(score / squash) * squash before averaging, to bound
+        outlier rewards (e.g. when PRM is over-confident on a few pixels and
+        a single tile dominates the gradient). Recommended: squash=2.0 when
+        the PRM gap is around 2.0–3.0.
     """
     score = prm(stages, policy_prob, pre, post, ext_feat=ext_feat)
+    if squash > 0.0:
+        score = torch.tanh(score / squash) * squash
     if focus is None:
         return -score.mean()
     return -(score * focus).sum() / (focus.sum() + 1e-6)
@@ -158,21 +163,61 @@ def prm_gated_kl(
     ref_logit: torch.Tensor,
     reward_map: torch.Tensor,
     temperature: float = 1.0,
+    gate_mode: str = "uncertainty",
 ):
     """KL(pi_theta || pi_ref) with a per-pixel gate produced by the PRM.
 
-    policy_logit, ref_logit: [B, 1, H, W] logits of base+residual policies.
-    reward_map: [B, 1, H, W] PRM logit on the *current* policy mask.
+    gate_mode='negative_reward' (legacy):
+        gate = sigma(-T * R). KL is heavy on PRM-low-score pixels — pulls policy
+        back to ref where the PRM thinks the current mask is bad. Risk: if ref
+        is *also* wrong on those pixels, KL locks the policy in the wrong place.
 
-    The gate sigma(temperature * reward_map) localizes regularization to pixels the
-    PRM marks as low-quality, which is where pi_theta should *not* drift away from
-    pi_ref. On already-confident-correct pixels the gate is small and KL is light.
+    gate_mode='uncertainty' (new default):
+        gate = exp(-(T * R)^2 / 2). KL is heavy where the PRM is *unsure*
+        (|R| small) and zero where the PRM is decisive. This frees policy to
+        follow the PRM whenever the PRM has a confident opinion (positive or
+        negative) and only anchors to ref where signal is weak.
     """
     from .sampling import kl_bernoulli_per_pixel
 
     kl = kl_bernoulli_per_pixel(policy_logit, ref_logit)  # [B, 1, H, W]
-    gate = torch.sigmoid(-temperature * reward_map)  # high where PRM is uncertain or negative
+    if gate_mode == "negative_reward":
+        gate = torch.sigmoid(-temperature * reward_map)
+    elif gate_mode == "uncertainty":
+        gate = torch.exp(-(temperature * reward_map) ** 2 / 2.0)
+    else:
+        raise ValueError(f"Unknown gate_mode: {gate_mode}")
     return (kl * gate).sum() / (gate.sum() + 1e-6)
+
+
+def unweighted_kl(policy_logit: torch.Tensor, ref_logit: torch.Tensor):
+    """Plain KL(pi_theta || pi_ref) averaged over all pixels.
+    Used by the w/o-PRM-gated-KL ablation."""
+    from .sampling import kl_bernoulli_per_pixel
+
+    return kl_bernoulli_per_pixel(policy_logit, ref_logit).mean()
+
+
+def grpo_to_dpo_pair(masks: torch.Tensor, rewards: torch.Tensor):
+    """Convert K candidates with per-pixel rewards into DPO chosen/rejected pair.
+
+    masks:   [B, K, H, W] — the K sampled binary masks.
+    rewards: [B, K, H, W] — per-pixel PRM rewards for each candidate.
+
+    Returns:
+        chosen, rejected: each [B, 1, H, W]. Chosen = candidate with the highest
+        image-level mean reward; rejected = candidate with the lowest. This gives
+        DPO a hard preference signal derived from the same PRM that GRPO uses,
+        making the comparison apples-to-apples.
+    """
+    img_rewards = rewards.mean(dim=(2, 3))  # [B, K]
+    best = img_rewards.argmax(dim=1)        # [B]
+    worst = img_rewards.argmin(dim=1)       # [B]
+    b = masks.shape[0]
+    idx = torch.arange(b, device=masks.device)
+    chosen = masks[idx, best].unsqueeze(1)
+    rejected = masks[idx, worst].unsqueeze(1)
+    return chosen, rejected
 
 
 def cosine_lr(step, total_steps, base_lr, warmup_steps=500, min_lr_factor=0.2):
