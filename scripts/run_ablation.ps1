@@ -176,14 +176,17 @@ foreach ($v in $Variants) {
         --eval_tta 0 `
         2>&1 | Tee-Object -FilePath $EvalLog | Out-Null
 
-    $bestLine = Select-String -Path $EvalLog -Pattern "^\[best\]" | Select-Object -Last 1
-    if ($bestLine) {
-        $line = $bestLine.Line
-        if ($line -match "F1=([\d\.]+) IoU=([\d\.]+)") {
+    # Parse the primary (Change3D-aligned, threshold=0.5) row, NOT [oracle].
+    $primaryLine = Select-String -Path $EvalLog -Pattern "^\[primary" | Select-Object -Last 1
+    if ($primaryLine) {
+        $line = $primaryLine.Line
+        if ($line -match "F1=([\d\.]+) IoU=([\d\.]+) P=([\d\.]+) R=([\d\.]+)") {
             $f1  = $matches[1]
             $iou = $matches[2]
-            Write-Host ("{0,-22} F1={1} IoU={2}" -f $v, $f1, $iou) -ForegroundColor Green
-            ("{0}`t{1}`t{2}" -f $v, $f1, $iou) | Out-File -FilePath $Summary -Append -Encoding utf8
+            $p   = $matches[3]
+            $r   = $matches[4]
+            Write-Host ("{0,-22} F1={1} IoU={2} P={3} R={4}" -f $v, $f1, $iou, $p, $r) -ForegroundColor Green
+            ("{0}`t{1}`t{2}`t{3}`t{4}" -f $v, $f1, $iou, $p, $r) | Out-File -FilePath $Summary -Append -Encoding utf8
         }
     }
 }

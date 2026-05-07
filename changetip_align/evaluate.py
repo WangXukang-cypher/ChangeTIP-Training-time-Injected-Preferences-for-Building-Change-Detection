@@ -63,19 +63,39 @@ def main():
     parser.add_argument("--head_mode", default="residual", choices=["residual", "direct"],
                         help="Match the value used at training time.")
     parser.add_argument("--eval_tta", type=int, default=0)
+    parser.add_argument("--backbone", default="change3d",
+                        choices=["change3d", "dinov2", "sam2"])
+    parser.add_argument("--dino_arch", default="vits14",
+                        choices=["vits14", "vitb14", "vitl14"])
+    parser.add_argument("--sam2_cfg", default="sam2.1_hiera_t")
+    parser.add_argument("--sam2_ckpt", default="")
+    parser.add_argument("--dino_input_size", type=int, default=0)
+    parser.add_argument("--sam2_input_size", type=int, default=512)
+    parser.add_argument("--decoder_channels", type=int, default=128)
     args = parser.parse_args()
     thresholds = [float(x) for x in args.thresholds.split(",") if x.strip()]
 
     add_change3d_root(args.change3d_root)
     loader = build_loader(args, args.split, train=False)
     model = build_change3d_model(args, args.ckpt, train=False)
+    # Always include 0.50 — this is the Change3D-aligned reporting threshold.
+    if 0.5 not in thresholds:
+        thresholds = sorted(set(thresholds) | {0.5})
     scores = evaluate(args, model, loader, thresholds)
     best_th = max(scores, key=lambda th: scores[th]["F1"])
     for th in thresholds:
         sc = scores[th]
         print(f"th={th:.2f} F1={sc['F1']:.4f} IoU={sc['IoU']:.4f} P={sc['precision']:.4f} R={sc['recall']:.4f}")
+    primary = scores[0.5]
     best = scores[best_th]
-    print(f"[best] th={best_th:.2f} F1={best['F1']:.4f} IoU={best['IoU']:.4f}")
+    # [primary] is the official metric for paper reporting (matches Change3D's
+    # fixed-threshold protocol). [oracle] sweeps thresholds on the test set
+    # itself and is reported only as a sanity bound — DO NOT cite in papers.
+    print(f"[primary th=0.50] F1={primary['F1']:.4f} IoU={primary['IoU']:.4f} "
+          f"P={primary['precision']:.4f} R={primary['recall']:.4f} "
+          f"Kappa={primary['Kappa']:.4f} OA={primary['OA']:.4f}")
+    print(f"[oracle th={best_th:.2f}] F1={best['F1']:.4f} IoU={best['IoU']:.4f} "
+          f"(sanity only, not for paper)")
 
 
 if __name__ == "__main__":

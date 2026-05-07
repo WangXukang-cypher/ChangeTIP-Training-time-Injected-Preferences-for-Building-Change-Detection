@@ -207,6 +207,28 @@ def main():
     parser.add_argument("--dpo_beta", type=float, default=0.2)
     parser.add_argument("--use_prm_gated_kl", type=int, default=1,
                         help="If 0, replace prm_gated_kl with unweighted KL.")
+    # Backbone selection
+    parser.add_argument("--backbone", default="change3d",
+                        choices=["change3d", "dinov2", "sam2"],
+                        help="Which encoder to use as the frozen prior. "
+                             "change3d = X3D-based (default), dinov2 = ViT-S/14, "
+                             "sam2 = Hiera image encoder.")
+    parser.add_argument("--dino_arch", default="vits14",
+                        choices=["vits14", "vitb14", "vitl14"],
+                        help="DINOv2 size when --backbone dinov2.")
+    parser.add_argument("--sam2_cfg", default="sam2.1_hiera_t",
+                        help="SAM2 config name when --backbone sam2.")
+    parser.add_argument("--sam2_ckpt", default="",
+                        help="Path to SAM2 .pt checkpoint when --backbone sam2.")
+    parser.add_argument("--dino_input_size", type=int, default=0,
+                        help="Override DINOv2 internal forward size. Must be a "
+                             "multiple of 14. 0 = auto (largest multiple of 14 "
+                             "that fits in input; e.g. 252 for 256-pixel input).")
+    parser.add_argument("--sam2_input_size", type=int, default=512,
+                        help="SAM2 internal forward size. Default 512 is a good "
+                             "tradeoff for 256-pixel CD inputs; 1024 = native.")
+    parser.add_argument("--decoder_channels", type=int, default=128,
+                        help="Hidden channels for the alt-backbone ChangeDecoder.")
     args = parser.parse_args()
     apply_variant(args)
 

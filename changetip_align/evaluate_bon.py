@@ -168,6 +168,15 @@ def main():
                         help="Always include the deterministic policy as a candidate. "
                              "Guarantees BoN never loses to plain inference.")
     parser.add_argument("--min_change_ratio", type=float, default=0.0)
+    parser.add_argument("--backbone", default="change3d",
+                        choices=["change3d", "dinov2", "sam2"])
+    parser.add_argument("--dino_arch", default="vits14",
+                        choices=["vits14", "vitb14", "vitl14"])
+    parser.add_argument("--sam2_cfg", default="sam2.1_hiera_t")
+    parser.add_argument("--sam2_ckpt", default="")
+    parser.add_argument("--dino_input_size", type=int, default=0)
+    parser.add_argument("--sam2_input_size", type=int, default=512)
+    parser.add_argument("--decoder_channels", type=int, default=128)
     args = parser.parse_args()
     thresholds = [float(x) for x in args.thresholds.split(",") if x.strip()]
 
@@ -182,15 +191,21 @@ def main():
           f"mode={args.bon_mode} use_prob={args.bon_use_prob} "
           f"include_det={args.bon_include_deterministic}")
 
+    if 0.5 not in thresholds:
+        thresholds = sorted(set(thresholds) | {0.5})
     scores = evaluate_bon(args, model, prm, ext_prior, noise_module, loader, thresholds)
     best_th = max(scores, key=lambda th: scores[th]["F1"])
     for th in thresholds:
         sc = scores[th]
         print(f"th={th:.2f} F1={sc['F1']:.4f} IoU={sc['IoU']:.4f} "
               f"P={sc['precision']:.4f} R={sc['recall']:.4f}")
+    primary = scores[0.5]
     best = scores[best_th]
-    print(f"[best K={args.bon_k}] th={best_th:.2f} "
-          f"F1={best['F1']:.4f} IoU={best['IoU']:.4f}")
+    print(f"[primary K={args.bon_k} th=0.50] F1={primary['F1']:.4f} "
+          f"IoU={primary['IoU']:.4f} P={primary['precision']:.4f} "
+          f"R={primary['recall']:.4f} Kappa={primary['Kappa']:.4f}")
+    print(f"[oracle K={args.bon_k} th={best_th:.2f}] F1={best['F1']:.4f} "
+          f"IoU={best['IoU']:.4f}  (sanity only, not for paper)")
 
 
 if __name__ == "__main__":

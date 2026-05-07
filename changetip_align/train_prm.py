@@ -106,6 +106,16 @@ def main():
     parser.add_argument("--eval_split", default="test", choices=["val", "test"],
                         help="Split used to select the best PRM checkpoint. Default 'test' "
                              "matches the Change3D evaluation protocol.")
+    # Backbone selection (must match the policy you'll post-train).
+    parser.add_argument("--backbone", default="change3d",
+                        choices=["change3d", "dinov2", "sam2"])
+    parser.add_argument("--dino_arch", default="vits14",
+                        choices=["vits14", "vitb14", "vitl14"])
+    parser.add_argument("--sam2_cfg", default="sam2.1_hiera_t")
+    parser.add_argument("--sam2_ckpt", default="")
+    parser.add_argument("--dino_input_size", type=int, default=0)
+    parser.add_argument("--sam2_input_size", type=int, default=512)
+    parser.add_argument("--decoder_channels", type=int, default=128)
     args = parser.parse_args()
 
     add_change3d_root(args.change3d_root)

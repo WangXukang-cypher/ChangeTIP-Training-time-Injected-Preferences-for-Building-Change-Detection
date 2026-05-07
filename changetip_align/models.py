@@ -99,11 +99,24 @@ def load_state_flexible(model, ckpt_path: str):
     return model
 
 
-def build_change3d_model(args, ckpt_path=None, train=False):
-    from model.trainer import Trainer
+def _build_base_trainer(args):
+    """Dispatch to the chosen backbone's trainer module.
 
-    cd_args = make_change3d_args(args)
-    base_model = Trainer(cd_args)
+    backbone=change3d (default) → original X3D-based Trainer.
+    backbone=dinov2             → DINOv2 ViT + DPT reassemble.
+    backbone=sam2               → SAM2 Hiera image encoder.
+    """
+    backbone = getattr(args, "backbone", "change3d").lower()
+    if backbone == "change3d":
+        from model.trainer import Trainer
+        cd_args = make_change3d_args(args)
+        return Trainer(cd_args)
+    from .backbones import build_alt_backbone
+    return build_alt_backbone(backbone, args)
+
+
+def build_change3d_model(args, ckpt_path=None, train=False):
+    base_model = _build_base_trainer(args)
     decoder_head = getattr(args, "decoder_head", "baseline")
     if decoder_head == "baseline":
         model = base_model
