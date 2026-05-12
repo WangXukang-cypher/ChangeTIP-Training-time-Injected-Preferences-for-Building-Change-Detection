@@ -78,12 +78,29 @@ class StageRewardHead(nn.Module):
 
 
 class MultiStageProcessReward(nn.Module):
-    """Process Reward Model decomposed across spatial-head stages.
+    """Multi-Stage Auxiliary Discriminator (MSAD).
 
-    Each stage gets its own discriminator head; the final reward is an
-    upsample-and-mix of all stage logits to the input resolution. The deep
-    stages dominate via a monotonically increasing weight schedule that is
-    consistent with the monotonicity regularizer used in training.
+    Originally introduced as a Process Reward Model (PRM) in our staged
+    GRPO setup, this module is functionally a multi-scale conditional
+    discriminator. In the end-to-end training pipeline (``train_e2e.py``)
+    it is jointly optimised with the decoder as an auxiliary network whose
+    role is to:
+
+      1. Discriminate ground-truth masks from perturbed/policy masks,
+         providing a learned structural-correctness signal beyond
+         pixel-wise BCE/Dice.
+      2. Provide a smooth gradient for the decoder via a frozen-MSAD
+         backward pass (the "direct" path in train_e2e.py).
+      3. Distil group-relative preference among K stochastic candidate
+         masks into both itself and (through the direct path) the decoder.
+
+    Architecture: each spatial-head stage gets its own per-stage head; the
+    final score is an upsample-and-mix of all stage logits to the input
+    resolution. The deep stages dominate via a monotonically increasing
+    weight schedule that is consistent with the monotonicity regulariser.
+
+    Naming: we keep the original class name ``MultiStageProcessReward`` to
+    preserve checkpoint compatibility. New code should refer to it as MSAD.
     """
 
     def __init__(
@@ -270,3 +287,8 @@ def iou_pair(mask: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     inter = (mask * target).sum(dim=dims)
     union = mask.sum(dim=dims) + target.sum(dim=dims) - inter
     return inter / (union + 1e-6)
+
+
+# Public alias so new code can use the descriptive name without breaking the
+# checkpoints that store ``MultiStageProcessReward`` weights under that key.
+MultiStageAuxDiscriminator = MultiStageProcessReward

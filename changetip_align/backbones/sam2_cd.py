@@ -31,7 +31,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .decoder import ChangeDecoder, CrossTimeFusion
+from .decoder import ChangeDecoder, build_fusion
 
 
 # Default channel widths for Hiera variants used in SAM2.
@@ -42,11 +42,24 @@ _HIERA_CHANNELS = {
     "sam2.1_hiera_s": [96, 192, 384, 768],
     "sam2.1_hiera_b+": [112, 224, 448, 896],
     "sam2.1_hiera_l": [144, 288, 576, 1152],
-    # Fallbacks
     "sam2_hiera_t": [96, 192, 384, 768],
     "sam2_hiera_s": [96, 192, 384, 768],
     "sam2_hiera_b+": [112, 224, 448, 896],
     "sam2_hiera_l": [144, 288, 576, 1152],
+}
+
+# SAM2 uses Hydra; ``build_sam2`` expects a config name relative to the
+# ``sam2`` package's config search path (which is ``sam2/configs``). Map our
+# short names to the actual yaml file paths.
+_HIERA_CONFIG_PATHS = {
+    "sam2.1_hiera_t":  "configs/sam2.1/sam2.1_hiera_t.yaml",
+    "sam2.1_hiera_s":  "configs/sam2.1/sam2.1_hiera_s.yaml",
+    "sam2.1_hiera_b+": "configs/sam2.1/sam2.1_hiera_b+.yaml",
+    "sam2.1_hiera_l":  "configs/sam2.1/sam2.1_hiera_l.yaml",
+    "sam2_hiera_t":    "configs/sam2/sam2_hiera_t.yaml",
+    "sam2_hiera_s":    "configs/sam2/sam2_hiera_s.yaml",
+    "sam2_hiera_b+":   "configs/sam2/sam2_hiera_b+.yaml",
+    "sam2_hiera_l":    "configs/sam2/sam2_hiera_l.yaml",
 }
 
 
@@ -57,10 +70,11 @@ def _build_sam2_image_encoder(cfg_name, ckpt_path):
     except ImportError as e:
         raise ImportError(
             "SAM2 backbone requested but the `sam2` package is not installed. "
-            "Run: pip install git+https://github.com/facebookresearch/sam2.git"
+            "Run: pip install --no-deps git+https://github.com/facebookresearch/sam2.git"
         ) from e
-    # build_sam2 wires Hiera + memory attention; we only need image_encoder.
-    sam2 = build_sam2(cfg_name, ckpt_path)
+    # Accept either our short name ("sam2.1_hiera_t") or the full yaml path.
+    config_path = _HIERA_CONFIG_PATHS.get(cfg_name, cfg_name)
+    sam2 = build_sam2(config_path, ckpt_path)
     return sam2.image_encoder
 
 
@@ -88,7 +102,8 @@ class SAM2Encoder(nn.Module):
                 f"Unknown SAM2 config '{cfg}'. Add its channel widths to _HIERA_CHANNELS."
             )
         self.embed_dims = list(embed_dims)
-        self.fuses = nn.ModuleList([CrossTimeFusion(c) for c in embed_dims])
+        fusion_mode = getattr(args, "fusion_mode", "concat")
+        self.fuses = nn.ModuleList([build_fusion(c, fusion_mode) for c in embed_dims])
 
         # SAM2 was trained at 1024x1024, but the Hiera image_encoder supports
         # arbitrary square inputs via pos_embed interpolation. For 256-pixel

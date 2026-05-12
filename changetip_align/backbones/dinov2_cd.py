@@ -27,7 +27,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .decoder import ChangeDecoder, ConvBNReLU, CrossTimeFusion, ResUnit
+from .decoder import ChangeDecoder, ConvBNReLU, CrossTimeFusion, ResUnit, build_fusion
 
 
 _DINO_SPECS = {
@@ -144,9 +144,8 @@ class DinoV2Encoder(nn.Module):
         self.reassembles = nn.ModuleList([
             DPTReassemble(self.dim, embed_dims[i], scales[i]) for i in range(4)
         ])
-        self.fuses = nn.ModuleList([
-            CrossTimeFusion(embed_dims[i]) for i in range(4)
-        ])
+        fusion_mode = getattr(args, "fusion_mode", "concat")
+        self.fuses = nn.ModuleList([build_fusion(embed_dims[i], fusion_mode) for i in range(4)])
 
     @torch.no_grad()
     def _tokens(self, x):

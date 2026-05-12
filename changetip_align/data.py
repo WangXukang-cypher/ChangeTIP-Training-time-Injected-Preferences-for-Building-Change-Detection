@@ -49,11 +49,16 @@ class MaskRatioFilteredDataset(torch.utils.data.Dataset):
         return self.base[self.indices[idx]]
 
 
-def build_loader(args, split: str, train: bool = False):
+def build_loader(args, split: str, train: bool = False, min_ratio_override=None):
     """Build a BCD loader through the original Change3D data pipeline.
 
     If args.min_change_ratio > 0 and split == 'train', filter out samples whose
     change-mask ratio is below the threshold. val/test are never filtered.
+
+    ``min_ratio_override`` (if not None) overrides args.min_change_ratio for
+    this loader only — used by train_baseline.py to build two train loaders
+    (full + filtered) and switch between them across the warmup/reward-active
+    phases.
     """
     import data.dataset as RSDataset
     import data.transforms as RSTransforms
@@ -63,7 +68,10 @@ def build_loader(args, split: str, train: bool = False):
     transform = train_tf if train else val_tf
     dataset = RSDataset.BCDDataset(file_root=args.data_root, split=split, transform=transform)
 
-    min_ratio = float(getattr(args, "min_change_ratio", 0.0))
+    if min_ratio_override is not None:
+        min_ratio = float(min_ratio_override)
+    else:
+        min_ratio = float(getattr(args, "min_change_ratio", 0.0))
     if split == "train" and min_ratio > 0.0:
         dataset = MaskRatioFilteredDataset(dataset, min_ratio=min_ratio, verbose=True)
 

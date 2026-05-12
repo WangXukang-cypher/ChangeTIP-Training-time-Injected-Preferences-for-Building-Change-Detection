@@ -1,11 +1,55 @@
-torch>=2.2
-torchvision>=0.17
-numpy>=1.26
-opencv-python>=4.11
-Pillow>=11.1
-scikit-image>=0.25
-scipy>=1.15
-tqdm>=4.67
-einops>=0.8
-fvcore>=0.1.5
-pytorchvideo>=0.1.5
+# Requirements for the "ChangeTIP-newbb" environment.
+#
+# Use this when you want to run the DINOv3 and/or SAM2 backbones. The original
+# "Change3D" env (torch 2.2.0+cu118) stays untouched and remains the home of
+# Change3D-baseline + DINOv2 experiments.
+#
+# Install order (do NOT just pip install -r this file blindly — torch must
+# come from the cu118 index, the rest from PyPI):
+#
+#   conda create -n ChangeTIP-newbb python=3.11 -y
+#   conda activate ChangeTIP-newbb
+#
+#   # 1. torch from the cu118 index (matches your CUDA 11.8 driver)
+#   pip install torch==2.5.1+cu118 torchvision==0.20.1+cu118 \
+#       --index-url https://download.pytorch.org/whl/cu118
+#
+#   # 2. everything else from PyPI
+#   pip install -r requirements-newbb.txt
+#
+#   # 3. SAM2 (last, --no-deps to keep our pinned torch)
+#   pip install --no-deps git+https://github.com/facebookresearch/sam2.git
+#
+# Then verify:
+#   python -c "
+#   import torch, transformers
+#   from transformers.utils import is_torch_available
+#   print(torch.__version__, transformers.__version__, is_torch_available())
+#   "
+# Expected: 2.5.1+cu118  4.56.x (or higher)  True
+
+# --- Numerical / image I/O ---
+numpy>=1.24,<2          # torch 2.5 still expects numpy<2 ABI
+scikit-image>=0.21      # data.py uses io.imread for masks
+Pillow>=9.4
+tqdm>=4.66
+
+# --- Backbone dependencies ---
+# transformers >=4.56 added DINOv3 model registration; we pin a known-good
+# floor. Version 5.x is fine on torch 2.5.
+transformers>=4.56
+huggingface-hub>=0.24
+safetensors>=0.4
+tokenizers>=0.20
+
+# --- SAM2 transitive deps (we install SAM2 itself with --no-deps) ---
+hydra-core>=1.3.2
+omegaconf>=2.3,<2.4
+iopath>=0.1.10
+
+# --- Used by Change3D's encoder (we still import its Trainer for the
+#     change3d backbone path) ---
+einops>=0.7
+
+# --- Standard scientific stack the existing code touches ---
+matplotlib>=3.7

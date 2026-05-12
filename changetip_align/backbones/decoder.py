@@ -1,9 +1,4 @@
-"""Shared building blocks for ViT-based change-detection backbones.
-
-These are intentionally small — the heavy lifting happens in the post-training
-stage (PRM + GRPO). The base decoder here is just strong enough to produce a
-sensible base probability that the residual head can refine.
-"""
+"""Shared building blocks for ViT-based change-detection backbones."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -66,6 +61,77 @@ class CrossTimeFusion(nn.Module):
     def forward(self, pre_feat, post_feat):
         diff = post_feat - pre_feat
         return self.fuse(torch.cat([pre_feat, post_feat, diff], dim=1))
+
+
+class FRMFusion(nn.Module):
+    """Feature Rectify Module — cross-temporal channel+spatial attention before fusion.
+
+    Drop-in replacement for CrossTimeFusion. Inspired by NeXt2Former-CD (Simeoni
+    et al., 2025): each temporal stream absorbs weighted signal from the other via
+    learned channel-wise and spatial-wise attention gates, then the pair is merged.
+
+    Compared with CrossTimeFusion (concat+1×1+ResUnit), FRM explicitly learns
+    *which features* in T2 are informative for T1 (and vice versa), making it
+    more tolerant to co-registration shifts and seasonal appearance change.
+    """
+
+    def __init__(self, channels, reduction=8):
+        super().__init__()
+        mid = max(channels // reduction, 8)
+        # Channel attention: global-pooled [2C] → sigmoid gate of shape [2C]
+        self.ch_fc = nn.Sequential(
+            nn.Linear(channels * 2, mid),
+            nn.ReLU(inplace=True),
+            nn.Linear(mid, channels * 2),
+            nn.Sigmoid(),
+        )
+        # Spatial attention: [2C, H, W] → 2 per-pixel weight maps
+        self.sp_conv = nn.Sequential(
+            nn.Conv2d(channels * 2, mid, 1, bias=False),
+            nn.BatchNorm2d(mid),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(mid, 2, 1),
+            nn.Sigmoid(),
+        )
+        # Learnable injection strength (initialized to 0.5 matching NeXt2Former)
+        self.lambda_c = nn.Parameter(torch.tensor(0.5))
+        self.lambda_s = nn.Parameter(torch.tensor(0.5))
+        # Reduce rectified [2C] → [C]
+        self.embed = nn.Sequential(
+            nn.Conv2d(channels * 2, channels, 1, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(inplace=True),
+            ResUnit(channels),
+        )
+
+    def forward(self, pre_feat, post_feat):
+        B, C, H, W = pre_feat.shape
+        cat_feat = torch.cat([pre_feat, post_feat], dim=1)  # [B, 2C, H, W]
+
+        # Channel-wise cross-temporal gate
+        ch_w = self.ch_fc(cat_feat.mean(dim=(2, 3)))  # [B, 2C]
+        cw_pre = ch_w[:, :C].view(B, C, 1, 1)    # weights from pre to inject into post
+        cw_post = ch_w[:, C:].view(B, C, 1, 1)   # weights from post to inject into pre
+
+        # Spatial cross-temporal gate
+        sp_w = self.sp_conv(cat_feat)             # [B, 2, H, W]
+        sw_pre = sp_w[:, 0:1]
+        sw_post = sp_w[:, 1:2]
+
+        # Rectify: each stream absorbs attention-weighted signal from the other
+        rect_pre = pre_feat + self.lambda_c * cw_post * post_feat \
+                            + self.lambda_s * sw_post * post_feat
+        rect_post = post_feat + self.lambda_c * cw_pre * pre_feat \
+                              + self.lambda_s * sw_pre * pre_feat
+
+        return self.embed(torch.cat([rect_pre, rect_post], dim=1))
+
+
+def build_fusion(channels: int, mode: str = "concat") -> nn.Module:
+    """Factory: 'concat' → CrossTimeFusion, 'frm' → FRMFusion."""
+    if mode == "frm":
+        return FRMFusion(channels)
+    return CrossTimeFusion(channels)
 
 
 class ChangeDecoder(nn.Module):

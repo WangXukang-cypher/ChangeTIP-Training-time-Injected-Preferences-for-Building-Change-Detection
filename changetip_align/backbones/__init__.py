@@ -11,6 +11,7 @@ The list-of-list nesting mirrors Change3D's ``Trainer`` interface so that
 """
 
 from .dinov2_cd import DinoV2BCDTrainer
+from .dinov3_cd import DinoV3BCDTrainer
 from .sam2_cd import SAM2BCDTrainer
 
 
@@ -18,9 +19,14 @@ def build_alt_backbone(name, args):
     name = name.lower()
     if name in ("dinov2", "dino", "dinov2_vits14", "dinov2_vitb14", "dinov2_vitl14"):
         return DinoV2BCDTrainer(args)
+    if name in ("dinov3", "dinov3_vits16", "dinov3_vits16plus",
+                "dinov3_vitb16", "dinov3_vitl16", "dinov3_vitl16_sat"):
+        return DinoV3BCDTrainer(args)
     if name in ("sam2", "sam", "sam2_hiera_t", "sam2_hiera_s", "sam2_hiera_b"):
         return SAM2BCDTrainer(args)
     raise ValueError(f"Unknown backbone: {name}")
 
 
-__all__ = ["DinoV2BCDTrainer", "SAM2BCDTrainer", "build_alt_backbone"]
+__all__ = [
+    "DinoV2BCDTrainer", "DinoV3BCDTrainer", "SAM2BCDTrainer", "build_alt_backbone",
+]

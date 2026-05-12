@@ -86,8 +86,11 @@ def _has_wrapper_keys(state):
 
 def load_state_flexible(model, ckpt_path: str):
     state = torch.load(ckpt_path, map_location="cpu")
-    if isinstance(state, dict) and "state_dict" in state:
-        state = state["state_dict"]
+    if isinstance(state, dict):
+        for key in ("model_state", "state_dict", "model", "net"):
+            if key in state and isinstance(state[key], dict):
+                state = state[key]
+                break
     if isinstance(model, ChangeTIPAlignModel) and not _has_wrapper_keys(state):
         state = {f"base_model.{key}": value for key, value in state.items()}
         missing, unexpected = model.load_state_dict(state, strict=False)
