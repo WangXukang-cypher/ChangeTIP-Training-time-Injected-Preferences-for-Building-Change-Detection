@@ -89,9 +89,9 @@ Run the current end-to-end trainer as a module:
 ```bash
 cd /fast/Wang/ChangeTIP-Align
 CUDA_VISIBLE_DEVICES=0 python -m changetip_align.train_baseline \
-  --change3d_root /fast/Wang/Change3D \
-  --data_root /fast/Wang/Chaofen/RLCD \
-  --save_path outputs/rlcd_dinov3_msad.pth \
+  --change3d_root root2Change3D \
+  --data_root root2data \
+  --save_path root2save \
   --backbone dinov3 \
   --dinov3_arch vitl16_sat \
   --dinov3_input_size 512 \
@@ -114,9 +114,9 @@ To train a plain supervised baseline with the same backbone/decoder, disable the
 
 ```bash
 python -m changetip_align.train_baseline \
-  --change3d_root /fast/Wang/Change3D \
-  --data_root /fast/Wang/Chaofen/RLCD \
-  --save_path outputs/rlcd_dinov3_sup.pth \
+  --change3d_root root2Change3D \
+  --data_root root2data \
+  --save_path root2save \
   --backbone dinov3 \
   --dinov3_arch vitl16_sat \
   --decoder_head dpt_residual \
@@ -133,9 +133,9 @@ Always match evaluation arguments to the checkpoint's training backbone and head
 
 ```bash
 python scripts/evaluate.py \
-  --change3d_root /fast/Wang/Change3D \
-  --data_root /fast/Wang/Chaofen/RLCD \
-  --ckpt outputs/rlcd_dinov3_msad.pth \
+  --change3d_root root2Change3D \
+  --data_root root2data \
+  --ckpt root2ckpt \
   --backbone dinov3 \
   --dinov3_arch vitl16_sat \
   --dinov3_input_size 512 \
@@ -148,9 +148,9 @@ If the checkpoint contains `msad_state`, optional MSAD self-verifier decoding ca
 
 ```bash
 python scripts/evaluate.py \
-  --change3d_root /fast/Wang/Change3D \
-  --data_root /fast/Wang/Chaofen/RLCD \
-  --ckpt outputs/rlcd_dinov3_msad.pth \
+  --change3d_root root2Change3D \
+  --data_root root2data \
+  --ckpt root2ckpt \
   --backbone dinov3 \
   --dinov3_arch vitl16_sat \
   --dinov3_input_size 512 \
@@ -161,38 +161,3 @@ python scripts/evaluate.py \
   --sv_thresholds 0.30,0.40,0.50,0.60,0.70
 ```
 
-## Diagnostics And Profiling
-
-Check whether MSAD ranks thresholded masks consistently with true IoU:
-
-```bash
-python scripts/msad_diagnostics.py \
-  --change3d_root /fast/Wang/Change3D \
-  --data_root /fast/Wang/Chaofen/RLCD \
-  --ckpt outputs/rlcd_dinov3_msad.pth \
-  --backbone dinov3 \
-  --dinov3_arch vitl16_sat \
-  --dinov3_input_size 512
-```
-
-Profile backbone variants:
-
-```bash
-python scripts/profile_efficiency.py \
-  --change3d_root /fast/Wang/Change3D \
-  --backbone dinov3 \
-  --dinov3_arch vitl16_sat \
-  --dinov3_input_size 512 \
-  --device cuda
-```
-
-## Suggested Ablations
-
-- Backbone: `dinov3` vs `dinov2` vs `sam2` vs `change3d`.
-- DINOv3 architecture: `vits16plus` vs `vitl16` vs `vitl16_sat`.
-- MSAD disabled: set `lambda_disc=lambda_direct=lambda_grpo=0`.
-- Direct MSAD only: enable `lambda_direct`, disable `lambda_grpo`.
-- Pixel-GRPO only after MSAD discriminator: enable `lambda_grpo`, vary `grpo_k`.
-- External prior: `--use_external_prior 1/0`, or `--external_backbone resnet18/dinov2_vits14`.
-- Fusion mode: `--fusion_mode concat` vs `--fusion_mode frm`.
-- Reward warmup: sweep `--reward_warmup_ratio`.
