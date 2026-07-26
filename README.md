@@ -1,199 +1,198 @@
-# ChangeTIP-Align
+# ChangeTIP
 
-TIPS-inspired spatial preference alignment for binary remote-sensing change detection.
+DINO-based binary remote-sensing change detection with training-time injected preferences.
 
-This project is a clean successor to the earlier verifier-guided DPO prototype. It keeps the
-candidate/verifier/DPO training logic, but adds a stronger architecture component: a
-TIPS/DPT-style dense residual head adapted to Change3D's CNN feature pyramid.
+This repository is **not** the old Change3D + verifier-guided DPO pipeline described by the previous README. The current code implements a single end-to-end training script that combines:
 
-## Core Idea
+- a frozen foundation backbone, default `DINOv3`;
+- a DPT-style reassemble decoder and spatial residual head;
+- `MSAD` (Multi-Stage Auxiliary Discriminator), formerly named PRM in code for checkpoint compatibility;
+- direct MSAD-to-decoder preference gradients;
+- Pixel-GRPO over stochastic candidate masks.
+
+In short, the default method is closer to **DINOv3 + MSAD + Pixel-GRPO** than to the older DPO-only Change3D wrapper.
+
+## Current Pipeline
 
 ```text
 pre/post image pair
-    -> Change3D encoder
-    -> original Change3D decoder -> base probability
-    -> DPT-style spatial residual head -> delta logit
-    -> sigmoid(logit(base probability) + alpha * delta logit)
-    -> verifier-guided DPO + supervised/KL/boundary constraints
+    -> frozen backbone (default: DINOv3; optional: DINOv2, SAM2, Change3D)
+    -> DPT reassemble + temporal fusion
+    -> ChangeDecoder -> base probability
+    -> DPT-style spatial residual head
+    -> final probability
+    -> supervised loss + MSAD discriminator + direct MSAD loss + Pixel-GRPO
 ```
 
-The residual head is zero-initialized at the output layer, so loading an old Change3D checkpoint
-starts from the same prediction as the original model. Post-training then learns a spatial
-refinement head that is explicitly aligned with verifier preferences.
+Training uses a two-phase curriculum in `changetip_align/train_baseline.py`:
 
-## Why This Folder Exists
-
-The old `ChangeAgent-DPO` name described the training procedure but not the project direction.
-`ChangeTIP-Align` is meant to describe the actual method:
-
-- `Change`: binary change detection.
-- `TIP`: TIPS-inspired spatial dense prediction head.
-- `Align`: preference alignment through verifier-guided DPO.
-
-The original `ChangeAgent-DPO` directory is not modified.
+1. Warmup phase: supervised BCE + Dice only. The residual head is frozen so the model first learns a strong base decoder.
+2. Reward-active phase: the residual head is unfrozen, MSAD is trained, and direct MSAD / Pixel-GRPO losses are added.
 
 ## Main Files
 
-- `changetip_align/heads.py`: TIPS/DPT-style residual dense head.
-- `changetip_align/models.py`: Change3D builder plus residual-head wrapper.
-- `changetip_align/train_verifier.py`: learned verifier for candidate masks.
-- `changetip_align/train_agent_dpo.py`: verifier-guided DPO training for the residual head.
-- `changetip_align/evaluate.py`: threshold sweep evaluation.
-- `inf_batch.py`: batch inference/export.
+- `changetip_align/train_baseline.py`: main and only active training entry point.
+- `changetip_align/models.py`: backbone dispatch plus residual-head wrapper.
+- `changetip_align/backbones/dinov3_cd.py`: DINOv3 ViT encoder for BCD.
+- `changetip_align/backbones/dinov2_cd.py`: DINOv2 ViT encoder for BCD.
+- `changetip_align/backbones/sam2_cd.py`: SAM2 image encoder for BCD.
+- `changetip_align/backbones/decoder.py`: DPT reassemble, temporal fusion, and change decoder blocks.
+- `changetip_align/heads.py`: spatial residual change head.
+- `changetip_align/prm.py`: MSAD implementation. The class name `MultiStageProcessReward` is kept for compatibility.
+- `changetip_align/preference.py`: supervised, boundary, direct preference, KL, DPO helper, and Pixel-GRPO losses.
+- `changetip_align/sampling.py`: low-rank spatial noise and mask sampling.
+- `changetip_align/evaluate.py`: threshold sweep evaluation and optional MSAD self-verifier decoding.
+- `scripts/evaluate.py`: wrapper for `changetip_align.evaluate`.
+- `scripts/msad_diagnostics.py`: checks whether MSAD scores rank candidate masks by IoU.
+- `scripts/profile_efficiency.py`: profiles backbone variants.
 
-## Train Verifier
+Historical compiled caches may reference removed scripts such as `train_prm.py`, `train_grpo.py`, or `train_agent_dpo.py`, but those source files are not part of the current repository state.
 
-The verifier can be trained from the original Change3D checkpoint. By default it uses the baseline
-decoder as the candidate generator.
+## Backbones
+
+Supported values for `--backbone`:
+
+- `dinov3`: default training backbone. Architecture is selected by `--dinov3_arch`.
+- `dinov2`: DINOv2 backbone. Architecture is selected by `--dino_arch`.
+- `sam2`: SAM2 Hiera image encoder. Requires `--sam2_ckpt`.
+- `change3d`: original Change3D trainer path. Requires a local Change3D checkout via `--change3d_root`.
+
+Important default:
+
+- `train_baseline.py` defaults to `--backbone dinov3`.
+- `evaluate.py` defaults to `--backbone change3d`, so pass `--backbone dinov3` when evaluating DINOv3 checkpoints.
+- MSAD's external prior defaults to `--external_backbone dinov2_vits14` when `--use_external_prior 1`.
+
+## Install
+
+The provided `requirements.txt` targets the newer DINOv3/SAM2 environment. Follow the install notes in that file, especially the CUDA-specific PyTorch install order.
+
+Typical setup:
 
 ```bash
-python scripts/train_verifier.py \
-  --change3d_root /fast/Wang/Change3D \
-  --data_root /fast/Wang/Chaofen/RLCD \
-  --ckpt /fast/Wang/Change3D/S128exp/WHU-CD_iter_200000_lr_0.0002/best_model.pth \
-  --save_path outputs/mashiki/agentdpo.pt \
-  --batch_size 4 \
-  --epochs 12 \
-  --thresholds 0.30,0.40,0.50,0.60,0.70 \
-  --pretrained /fast/Wang/Change3D/X3D_L.pyth
+conda create -n ChangeTIP-newbb python=3.11 -y
+conda activate ChangeTIP-newbb
+
+pip install torch==2.5.1+cu118 torchvision==0.20.1+cu118 \
+  --index-url https://download.pytorch.org/whl/cu118
+
+pip install -r requirements.txt
+
+# Optional, only for --backbone sam2
+pip install --no-deps git+https://github.com/facebookresearch/sam2.git
 ```
 
-## Train ChangeTIP-Align
+## Train
 
-The DPO stage defaults to `--decoder_head dpt_residual`, loads the old checkpoint into the wrapped
-model, freezes the base model, and trains only the residual spatial head unless
-`--train_base_decoder 1` is set.
+Run the current end-to-end trainer as a module:
 
 ```bash
 cd /fast/Wang/ChangeTIP-Align
-CUDA_VISIBLE_DEVICES=0 python scripts/train_agent_dpo.py \
+CUDA_VISIBLE_DEVICES=0 python -m changetip_align.train_baseline \
   --change3d_root /fast/Wang/Change3D \
   --data_root /fast/Wang/Chaofen/RLCD \
-  --ckpt /fast/Wang/Change3D/S128exp/WHU-CD_iter_200000_lr_0.0002/best_model.pth \
-  --verifier_ckpt outputs/mashiki/agentdpo.pt \
-  --save_path outputs/rlcd_changetip_align.pth \
+  --save_path outputs/rlcd_dinov3_msad.pth \
+  --backbone dinov3 \
+  --dinov3_arch vitl16_sat \
+  --dinov3_input_size 512 \
+  --decoder_head dpt_residual \
   --batch_size 4 \
-  --eval_split test \
-  --eval_tta 1 \
-  --epochs 30 \
-  --lr 2e-5 \
-  --pretrained /fast/Wang/Change3D/X3D_L.pyth \
-  --thresholds 0.30,0.40,0.50,0.60,0.70
+  --epochs 80 \
+  --lr 3e-4 \
+  --reward_warmup_ratio 0.7 \
+  --grpo_k 4 \
+  --lambda_sup 1.0 \
+  --lambda_disc 1.0 \
+  --lambda_mono 0.2 \
+  --lambda_calib 0.5 \
+  --lambda_direct 0.1 \
+  --lambda_grpo 0.5 \
+  --eval_split test
+```
+
+To train a plain supervised baseline with the same backbone/decoder, disable the MSAD and GRPO terms:
+
+```bash
+python -m changetip_align.train_baseline \
+  --change3d_root /fast/Wang/Change3D \
+  --data_root /fast/Wang/Chaofen/RLCD \
+  --save_path outputs/rlcd_dinov3_sup.pth \
+  --backbone dinov3 \
+  --dinov3_arch vitl16_sat \
+  --decoder_head dpt_residual \
+  --lambda_disc 0 \
+  --lambda_direct 0 \
+  --lambda_grpo 0 \
+  --lambda_mono 0 \
+  --lambda_calib 0
 ```
 
 ## Evaluate
 
-`evaluate.py` defaults to the residual wrapper, so it can load either an original Change3D
-checkpoint or a trained ChangeTIP-Align checkpoint.
+Always match evaluation arguments to the checkpoint's training backbone and head:
 
 ```bash
 python scripts/evaluate.py \
   --change3d_root /fast/Wang/Change3D \
   --data_root /fast/Wang/Chaofen/RLCD \
-  --ckpt outputs/rlcd_changetip_align.pth \
+  --ckpt outputs/rlcd_dinov3_msad.pth \
+  --backbone dinov3 \
+  --dinov3_arch vitl16_sat \
+  --dinov3_input_size 512 \
+  --decoder_head dpt_residual \
   --split test \
-  --pretrained /fast/Wang/Change3D/X3D_L.pyth
-```
-
-## Recommended Ablations
-
-- Change3D baseline.
-- Baseline decoder + verifier-guided DPO.
-- DPT residual head + supervised/KL only.
-- DPT residual head + verifier-guided DPO.
-- DPT residual head with/without `--train_base_decoder 1`.
-- Candidate generation with/without flips/scales.
-
----
-
-## Pixel-GRPO + Process Reward (new pipeline)
-
-This pipeline replaces the verifier-guided DPO stage with three coupled
-components:
-
-- **Pixel-GRPO** — `changetip_align/preference.py::pixel_grpo_loss`.
-  Group-relative, critic-free, per-pixel advantage estimation with PPO-clip.
-- **Multi-Stage Process Reward Model (PRM)** — `changetip_align/prm.py`.
-  Discriminator decomposed across the spatial-head fusion stages, trained
-  with image-level IoU calibration and stage-monotonicity regularization.
-- **Stochastic Spatial Sampling** — `changetip_align/sampling.py`.
-  Low-rank Gaussian noise injected on the residual logit so that K candidate
-  masks have meaningful log-prob differences.
-
-See `THEORY.md` for the variance-reduction and concentration analysis.
-
-### Stage 1 — Train the PRM (Linux)
-
-```bash
-cd /fast/Wang/ChangeTIP-Align
-CUDA_VISIBLE_DEVICES=0 python scripts/train_prm.py \
-  --change3d_root /fast/Wang/Change3D \
-  --data_root /fast/Wang/Chaofen/RLCD \
-  --ckpt /fast/Wang/Change3D/S128exp/WHU-CD_iter_200000_lr_0.0002/best_model.pth \
-  --pretrained /fast/Wang/Change3D/X3D_L.pyth \
-  --save_path outputs/rlcd_prm.pt \
-  --batch_size 8 \
-  --epochs 12 \
-  --lr 1e-3 \
-  --sampling_sigma 4.0 \
-  --sampling_tau 1.0 \
-  --p_flip 0.05 \
-  --lambda_disc 1.0 \
-  --lambda_mono 0.2 \
-  --lambda_calib 0.5
-```
-
-### Stage 2 — Train the policy with Pixel-GRPO (Linux)
-
-```bash
-cd /fast/Wang/ChangeTIP-Align
-CUDA_VISIBLE_DEVICES=0 python scripts/train_grpo.py \
-  --change3d_root /fast/Wang/Change3D \
-  --data_root /fast/Wang/Chaofen/RLCD \
-  --ckpt /fast/Wang/Change3D/S128exp/WHU-CD_iter_200000_lr_0.0002/best_model.pth \
-  --prm_ckpt outputs/rlcd_prm.pt \
-  --pretrained /fast/Wang/Change3D/X3D_L.pyth \
-  --save_path outputs/rlcd_changetip_grpo.pth \
-  --batch_size 4 \
-  --epochs 30 \
-  --lr 2e-5 \
-  --grpo_k 8 \
-  --sampling_sigma 4.0 \
-  --sampling_tau_init 1.0 \
-  --sampling_tau_final 0.2 \
-  --clip_eps 0.2 \
-  --lambda_sup 1.0 \
-  --lambda_grpo 1.0 \
-  --lambda_kl 3e-3 \
-  --lambda_boundary 0.3 \
-  --lambda_fp 0.3 \
-  --eval_split test \
   --eval_tta 1
 ```
 
-### Stage 3 — Evaluate
+If the checkpoint contains `msad_state`, optional MSAD self-verifier decoding can be enabled:
 
 ```bash
 python scripts/evaluate.py \
   --change3d_root /fast/Wang/Change3D \
   --data_root /fast/Wang/Chaofen/RLCD \
-  --ckpt outputs/rlcd_changetip_grpo.pth \
+  --ckpt outputs/rlcd_dinov3_msad.pth \
+  --backbone dinov3 \
+  --dinov3_arch vitl16_sat \
+  --dinov3_input_size 512 \
+  --decoder_head dpt_residual \
   --split test \
-  --pretrained /fast/Wang/Change3D/X3D_L.pyth \
-  --eval_tta 1
+  --eval_tta 1 \
+  --use_self_verifier 1 \
+  --sv_thresholds 0.30,0.40,0.50,0.60,0.70
 ```
 
-### Suggested Ablations for the New Pipeline
+## Diagnostics And Profiling
 
-- **DPO baseline** (existing): `scripts/train_agent_dpo.py` — main competitor in the paper.
-- **Pixel-GRPO without PRM** (oracle reward): replace `--prm_ckpt` rewards with
-  per-pixel IoU vs GT to isolate the PRM contribution.
-- **Group size sweep**: `--grpo_k {2, 4, 8, 16}` — verifies Theorem 1.
-- **No spatial noise**: `--sampling_tau_init 0 --sampling_tau_final 0` — should
-  collapse to near-zero GRPO loss, verifies Theorem 4.
-- **Clip eps sweep**: `--clip_eps {0.1, 0.2, 0.4}` — Proposition 1.
-- **Image-level KL vs PRM-gated KL**: keep `--lambda_kl` but replace
-  `prm_gated_kl` call with `kl_bernoulli` in `train_grpo.py`.
-- **PRM stage weights**: edit `MultiStageProcessReward(weight_temperature=...)`
-  to test uniform vs deep-favoring weighting.
+Check whether MSAD ranks thresholded masks consistently with true IoU:
 
+```bash
+python scripts/msad_diagnostics.py \
+  --change3d_root /fast/Wang/Change3D \
+  --data_root /fast/Wang/Chaofen/RLCD \
+  --ckpt outputs/rlcd_dinov3_msad.pth \
+  --backbone dinov3 \
+  --dinov3_arch vitl16_sat \
+  --dinov3_input_size 512
+```
+
+Profile backbone variants:
+
+```bash
+python scripts/profile_efficiency.py \
+  --change3d_root /fast/Wang/Change3D \
+  --backbone dinov3 \
+  --dinov3_arch vitl16_sat \
+  --dinov3_input_size 512 \
+  --device cuda
+```
+
+## Suggested Ablations
+
+- Backbone: `dinov3` vs `dinov2` vs `sam2` vs `change3d`.
+- DINOv3 architecture: `vits16plus` vs `vitl16` vs `vitl16_sat`.
+- MSAD disabled: set `lambda_disc=lambda_direct=lambda_grpo=0`.
+- Direct MSAD only: enable `lambda_direct`, disable `lambda_grpo`.
+- Pixel-GRPO only after MSAD discriminator: enable `lambda_grpo`, vary `grpo_k`.
+- External prior: `--use_external_prior 1/0`, or `--external_backbone resnet18/dinov2_vits14`.
+- Fusion mode: `--fusion_mode concat` vs `--fusion_mode frm`.
+- Reward warmup: sweep `--reward_warmup_ratio`.
