@@ -2,7 +2,7 @@
 
 DINO-based binary remote-sensing change detection with training-time injected preferences.
 
-This repository is **not** the old Change3D + verifier-guided DPO pipeline described by the previous README. The current code implements a single end-to-end training script that combines:
+This repository implements a single end-to-end training script that combines:
 
 - a frozen foundation backbone, default `DINOv3`;
 - a DPT-style reassemble decoder and spatial residual head;
